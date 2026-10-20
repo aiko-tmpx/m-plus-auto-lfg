@@ -24,14 +24,15 @@ This document tracks identified bugs, edge cases, and feature refinements to be 
 
 ---
 
-### [ ] Task 2: Remove Pause Queue Button & Simplify HUD Controls
+### [x] Task 2: Remove Pause Queue Button & Simplify HUD Controls
+* **Status:** Completed
 * **Reported Behavior:**
   The "Pause Queue" button is unnecessary and clutters the interface. The addon only needs straightforward **Start Queue** and **Stop Queue / Delist** controls.
-* **Action Items:**
-  1. Remove `f.pauseBtn` from [`UI.lua`](UI.lua).
-  2. Expand `startBtn` to span the full bottom row width (or center it cleanly with standard Blizzard `UIPanelButtonTemplate` sizing).
-  3. Remove the `PAUSED` state from [`Constants.lua`](Constants.lua) and [`Core.lua`](Core.lua) (or simplify FSM to `IDLE`, `LISTED`, `ASSEMBLING`, `FULL`).
-  4. Remove `/malfg pause` slash command and clean up help text.
+* **Changes Made:**
+  1. Removed `f.pauseBtn` from [`UI.lua`](UI.lua).
+  2. Resized `startBtn` to 312px width (`startBtn:SetSize(312, 24)`), centered at the bottom of the HUD window, matching `inviteBtn`.
+  3. Removed the `PAUSED` state from [`Constants.lua`](Constants.lua), [`Core.lua`](Core.lua), [`UI.lua`](UI.lua), and [`README.md`](README.md).
+  4. Removed the `/malfg pause` command and removed it from slash command help output.
 
 ---
 

@@ -27,7 +27,6 @@ ns.States = {
     LISTED     = "LISTED",     -- Group listed in LFG, 0 pending invites, waiting/scanning
     ASSEMBLING = "ASSEMBLING", -- Group actively assembling (1-4 members or pending invites)
     FULL       = "FULL",       -- Group reached 5/5 members, auto-delisting completed
-    PAUSED     = "PAUSED",     -- Matchmaking paused by player
 }
 
 -------------------------------------------------------------------------------

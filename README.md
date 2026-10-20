@@ -65,9 +65,6 @@ stateDiagram-v2
     ASSEMBLING --> ASSEMBLING: Candidate Leaves / Declines (Slot Recovered)
     ASSEMBLING --> FULL: 5/5 Members Filled (Auto-delist)
     FULL --> ASSEMBLING: Member Leaves Before Run
-    LISTED --> PAUSED: /malfg pause
-    ASSEMBLING --> PAUSED: /malfg pause
-    PAUSED --> LISTED: Resume Matchmaking
     FULL --> IDLE: Reset / Run Completed
 ```
 
@@ -75,7 +72,6 @@ stateDiagram-v2
 - **`LISTED`**: Premade group listed in LFG, 0 pending invites, scanning applicants.
 - **`ASSEMBLING`**: 1–4 members or pending invites; actively evaluating and inviting candidates.
 - **`FULL`**: 5/5 members. Internal stopwatch stops, group automatically delists from LFG, and formation stats are logged.
-- **`PAUSED`**: Matchmaking paused by leader.
 
 ---
 
@@ -101,7 +97,6 @@ MPlusAutoLFG/
 | :--- | :--- |
 | `/malfg` | Toggle main floating HUD window |
 | `/malfg start` | Read active keystone, calculate dynamic ilvl, and create automated LFG listing |
-| `/malfg pause` | Pause or resume automated queue evaluation |
 | `/malfg debug` | Toggle verbose applicant evaluation chat logs |
 | `/malfg reset` | Reset queue state, pending invites, and restore frame positions |
 

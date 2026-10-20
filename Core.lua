@@ -260,7 +260,7 @@ end
 ---Strict FIFO candidate evaluation across the active applicant queue
 function Core:EvaluateQueue()
     -- Guard: Only evaluate in active matchmaking states
-    if ns.CurrentState == ns.States.IDLE or ns.CurrentState == ns.States.PAUSED or ns.CurrentState == ns.States.FULL then
+    if ns.CurrentState == ns.States.IDLE or ns.CurrentState == ns.States.FULL then
         return
     end
 
@@ -497,19 +497,6 @@ function Core:OnActiveEntryUpdated()
     end
 end
 
----Pause or resume automated queue evaluation
-function ns.TogglePause()
-    if ns.CurrentState == ns.States.PAUSED then
-        Core:SetState(ns.States.LISTED, "User resumed matchmaking")
-        Logger:Info("QUEUE", "Queue matchmaking RESUMED.")
-        Core:EvaluateQueue()
-    else
-        Core:SetState(ns.States.PAUSED, "User paused matchmaking")
-        Logger:Info("QUEUE", "Queue matchmaking PAUSED.")
-        ns.UI:ClearCandidateCard()
-    end
-end
-
 -------------------------------------------------------------------------------
 -- UI Synchronization
 -------------------------------------------------------------------------------
@@ -637,8 +624,6 @@ SlashCmdList["MPLUSAUTOLFG"] = function(msg)
         end
     elseif cmd == "start" then
         Core:StartMatchmaking()
-    elseif cmd == "pause" then
-        ns.TogglePause()
     elseif cmd == "reset" then
         wipe(pendingInvites)
         Core:StopStopwatch()
@@ -654,7 +639,6 @@ SlashCmdList["MPLUSAUTOLFG"] = function(msg)
         Logger:Info("HELP", "Commands:")
         print("  |cff00ff00/malfg|r - Toggle main HUD")
         print("  |cff00ff00/malfg start|r - Start automated matchmaking queue")
-        print("  |cff00ff00/malfg pause|r - Pause / resume queue")
         print("  |cff00ff00/malfg debug|r - Toggle verbose candidate evaluation logs")
         print("  |cff00ff00/malfg reset|r - Reset queue state, pending invites, and HUD position")
     end

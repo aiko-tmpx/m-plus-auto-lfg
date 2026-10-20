@@ -162,10 +162,10 @@ function UI:CreateMainHUD()
     end)
     inviteBtn:Disable()
 
-    -- Secondary Control Buttons Row: [Start / Delist Queue] and [Pause / Resume]
+    -- Secondary Control Button: [Start Queue / Delist Group]
     local startBtn = CreateFrame("Button", "MPlusAutoLFGStartButton", f, "UIPanelButtonTemplate")
-    startBtn:SetSize(152, 24)
-    startBtn:SetPoint("BOTTOMLEFT", f, "BOTTOMLEFT", 14, 12)
+    startBtn:SetSize(312, 24)
+    startBtn:SetPoint("BOTTOM", f, "BOTTOM", 0, 12)
     startBtn:SetText("Start Queue")
     f.startBtn = startBtn
 
@@ -176,18 +176,6 @@ function UI:CreateMainHUD()
             else
                 ns.Core:StartMatchmaking()
             end
-        end
-    end)
-
-    local pauseBtn = CreateFrame("Button", nil, f, "UIPanelButtonTemplate")
-    pauseBtn:SetSize(152, 24)
-    pauseBtn:SetPoint("BOTTOMRIGHT", f, "BOTTOMRIGHT", -14, 12)
-    pauseBtn:SetText("Pause Queue")
-    f.pauseBtn = pauseBtn
-
-    pauseBtn:SetScript("OnClick", function()
-        if ns.TogglePause then
-            ns.TogglePause()
         end
     end)
 
@@ -261,8 +249,6 @@ function UI:UpdateHeader(challengeMapID, keyLevel, dungeonName, iconTexture, sta
         stateFormatted = "|cffffff00ASSEMBLING|r"
     elseif state == ns.States.FULL then
         stateFormatted = "|cff00b4ffGROUP FULL|r"
-    elseif state == ns.States.PAUSED then
-        stateFormatted = "|cffff8800PAUSED|r"
     end
     mainFrame.statusText:SetText(format("Status: %s", stateFormatted))
 
@@ -271,13 +257,6 @@ function UI:UpdateHeader(challengeMapID, keyLevel, dungeonName, iconTexture, sta
         mainFrame.startBtn:SetText("Delist Group")
     else
         mainFrame.startBtn:SetText("Start Queue")
-    end
-
-    -- Update Pause / Resume button label
-    if state == ns.States.PAUSED then
-        mainFrame.pauseBtn:SetText("Resume Queue")
-    else
-        mainFrame.pauseBtn:SetText("Pause Queue")
     end
 end
 
