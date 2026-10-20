@@ -81,6 +81,16 @@ This document tracks identified bugs, edge cases, and feature refinements to be 
 
 ---
 
+### [ ] Task 6: Replace Window Header Title with Addon Name
+* **Reported Behavior:**
+  The main HUD window title text currently displays `"Mythic+ Auto Matchmaker"`. It should be replaced with the official addon name (`"MPlusAutoLFG"`).
+* **Technical Details:**
+  * In `UI.lua`, line 63 sets `f.TitleText:SetText("Mythic+ Auto Matchmaker")`.
+* **Action Items:**
+  1. In [`UI.lua`](UI.lua), update `f.TitleText:SetText("MPlusAutoLFG")` (or use `addonName`).
+
+---
+
 ## Execution Order
 We will address these one by one:
 1. **Task 1:** Fix Premade Groups Category Selection (Dungeons Tab Navigation).
@@ -88,3 +98,4 @@ We will address these one by one:
 3. **Task 3:** Real-Time Roster & Utility Requirement Updates on Leaver.
 4. **Task 4:** Invite State Handling & Candidate Card Lock (Show "INVITED").
 5. **Task 5:** Replace Role Text with Spec Icons.
+6. **Task 6:** Replace Window Header Title with Addon Name.
