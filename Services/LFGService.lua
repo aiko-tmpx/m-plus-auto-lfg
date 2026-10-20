@@ -2,7 +2,7 @@
     MPlusAutoLFG - Matchmaking Assistant for Mythic+
     File: Services/LFGService.lua
     Description: Data Access Layer and adapter facade over Blizzard's C_LFGList, C_MythicPlus,
-                 and C_ChallengeMode APIs. Supports runtime Mock swapping for testing and dev simulation.
+                 and C_ChallengeMode APIs. 100% native client calls.
 ]]
 
 local addonName, ns = ...
@@ -19,43 +19,12 @@ local format = string.format
 local LFGService = {}
 ns.LFGService = LFGService
 
--- Internal reference to active MockEngine (if debug simulation enabled)
-local mockEngine = nil
-
--------------------------------------------------------------------------------
--- Mock Injection / Switching
--------------------------------------------------------------------------------
----Set or clear the mock engine delegate
----@param mock table|nil
-function LFGService:SetMockEngine(mock)
-    mockEngine = mock
-end
-
----Get the active mock engine
----@return table|nil
-function LFGService:GetMockEngine()
-    return mockEngine
-end
-
----Check if mock engine is currently active
----@return boolean
-function LFGService:IsMockActive()
-    return mockEngine ~= nil and mockEngine.IsEnabled and mockEngine:IsEnabled() == true
-end
-
 -------------------------------------------------------------------------------
 -- Keystone & Activity Information
 -------------------------------------------------------------------------------
 ---Retrieve owned Mythic Keystone information
 ---@return number challengeMapID, number keystoneLevel, string dungeonName, number|string iconTexture, number activityID
 function LFGService:GetOwnedKeystoneInfo()
-    if self:IsMockActive() then
-        local mock = self:GetMockEngine()
-        if mock and mock.GetOwnedKeystoneInfo then
-            return mock:GetOwnedKeystoneInfo()
-        end
-    end
-
     local activityID, groupID, keystoneLevel
     if C_LFGList and C_LFGList.GetOwnedKeystoneActivityAndGroupAndLevel then
         activityID, groupID, keystoneLevel = C_LFGList.GetOwnedKeystoneActivityAndGroupAndLevel()
@@ -104,7 +73,6 @@ function LFGService:FindActivityIDForMap(challengeMapID)
     for _, actID in ipairs(activities) do
         local info = C_LFGList.GetActivityInfoTable and C_LFGList.GetActivityInfoTable(actID)
         if info and (info.isMythicPlusActivity or info.isMythicActivity) then
-            -- Some activities store mapID or match dungeon name
             if info.mapID == challengeMapID or (info.groupFinderActivityGroupID and info.groupFinderActivityGroupID == challengeMapID) then
                 return actID
             end
@@ -120,13 +88,6 @@ end
 ---Retrieve party leader's equipped average item level
 ---@return number
 function LFGService:GetLeaderEquippedItemLevel()
-    if self:IsMockActive() then
-        local mock = self:GetMockEngine()
-        if mock and mock.GetLeaderEquippedItemLevel then
-            return mock:GetLeaderEquippedItemLevel()
-        end
-    end
-
     if GetAverageItemLevel then
         local _, equippedIlvl = GetAverageItemLevel()
         return floor(equippedIlvl or 0)
@@ -164,21 +125,12 @@ end
 ---@param description string
 ---@return boolean success
 function LFGService:CreateListing(activityID, requiredIlvl, title, description)
-    if self:IsMockActive() then
-        local mock = self:GetMockEngine()
-        if mock and mock.CreateListing then
-            return mock:CreateListing(activityID, requiredIlvl, title, description)
-        end
-    end
-
-    -- Real Live Group Listing
     -- 1. If group is already listed in Premade Groups:
     if C_LFGList and C_LFGList.HasActiveEntryInfo and C_LFGList.HasActiveEntryInfo() then
         return true
     end
 
     -- 2. Attempt native creation call with activityID and requiredIlvl
-    -- (Never call tainted functions like SetEntryTitle or ClearCreationTextFields)
     local ok = false
     if C_LFGList and C_LFGList.CreateListing and activityID and activityID > 0 then
         local status, res = pcall(C_LFGList.CreateListing, activityID, requiredIlvl or 0, 0, false, false)
@@ -192,7 +144,7 @@ function LFGService:CreateListing(activityID, requiredIlvl, title, description)
         end
     end
 
-    -- 3. If direct call was blocked or didn't succeed, open Blizzard's Group Finder
+    -- 3. If direct call was blocked or didn't succeed, open Blizzard's native Group Finder frame
     if not ok then
         if PVEFrame_ShowFrame then
             pcall(PVEFrame_ShowFrame, "GroupFinderFrame", "LFGListPVEStub")
@@ -207,13 +159,6 @@ end
 ---@param requiredIlvl number
 ---@return boolean
 function LFGService:UpdateListing(activityID, requiredIlvl)
-    if self:IsMockActive() then
-        local mock = self:GetMockEngine()
-        if mock and mock.UpdateListing then
-            return mock:UpdateListing(activityID, requiredIlvl)
-        end
-    end
-
     if C_LFGList and C_LFGList.HasActiveEntryInfo and C_LFGList.HasActiveEntryInfo() then
         return true
     end
@@ -223,13 +168,6 @@ end
 ---Remove current active LFG listing
 ---@return boolean
 function LFGService:RemoveListing()
-    if self:IsMockActive() then
-        local mock = self:GetMockEngine()
-        if mock and mock.RemoveListing then
-            return mock:RemoveListing()
-        end
-    end
-
     if C_LFGList and C_LFGList.RemoveListing then
         return pcall(C_LFGList.RemoveListing)
     end
@@ -239,13 +177,6 @@ end
 ---Check if group currently has an active LFG listing
 ---@return boolean
 function LFGService:HasActiveListing()
-    if self:IsMockActive() then
-        local mock = self:GetMockEngine()
-        if mock and mock.HasActiveListing then
-            return mock:HasActiveListing()
-        end
-    end
-
     if C_LFGList and C_LFGList.HasActiveEntryInfo then
         return C_LFGList.HasActiveEntryInfo() == true
     end
@@ -255,13 +186,6 @@ end
 ---Get details about the active listing
 ---@return table|nil
 function LFGService:GetActiveListingInfo()
-    if self:IsMockActive() then
-        local mock = self:GetMockEngine()
-        if mock and mock.GetActiveListingInfo then
-            return mock:GetActiveListingInfo()
-        end
-    end
-
     if C_LFGList and C_LFGList.GetActiveEntryInfo then
         return C_LFGList.GetActiveEntryInfo()
     end
@@ -274,13 +198,6 @@ end
 ---Retrieve list of all applicant IDs in strict FIFO order (ascending applicantID)
 ---@return table applicantsArray
 function LFGService:GetApplicants()
-    if self:IsMockActive() then
-        local mock = self:GetMockEngine()
-        if mock and mock.GetApplicants then
-            return mock:GetApplicants()
-        end
-    end
-
     if not C_LFGList or not C_LFGList.GetApplicants then
         return {}
     end
@@ -299,13 +216,6 @@ end
 ---@param applicantID number
 ---@return table|nil
 function LFGService:GetApplicantInfo(applicantID)
-    if self:IsMockActive() then
-        local mock = self:GetMockEngine()
-        if mock and mock.GetApplicantInfo then
-            return mock:GetApplicantInfo(applicantID)
-        end
-    end
-
     if not C_LFGList or not C_LFGList.GetApplicantInfo then
         return nil
     end
@@ -318,13 +228,6 @@ end
 ---@param memberIndex number
 ---@return table|nil candidateInfo
 function LFGService:GetApplicantMemberInfo(applicantID, memberIndex)
-    if self:IsMockActive() then
-        local mock = self:GetMockEngine()
-        if mock and mock.GetApplicantMemberInfo then
-            return mock:GetApplicantMemberInfo(applicantID, memberIndex)
-        end
-    end
-
     if not C_LFGList or not C_LFGList.GetApplicantMemberInfo then
         return nil
     end
@@ -342,9 +245,8 @@ function LFGService:GetApplicantMemberInfo(applicantID, memberIndex)
     itemLevel = floor(itemLevel or 0)
     dungeonScore = floor(dungeonScore or 0)
 
-    -- If specID is not returned directly by client API, lookup from spec table if inferable
+    -- If specID is not returned directly by client API, fallback to 0
     if not specID or specID == 0 then
-        -- Leave specID nil or 0; duplicate check handles nil gracefully
         specID = 0
     end
 
@@ -372,13 +274,6 @@ end
 ---@param activityID number
 ---@return number bestRunLevel, boolean finishedSuccess, number mapScore, string mapName
 function LFGService:GetApplicantDungeonScore(applicantID, memberIndex, activityID)
-    if self:IsMockActive() then
-        local mock = self:GetMockEngine()
-        if mock and mock.GetApplicantDungeonScore then
-            return mock:GetApplicantDungeonScore(applicantID, memberIndex, activityID)
-        end
-    end
-
     if not C_LFGList then
         return 0, false, 0, ""
     end
@@ -406,13 +301,6 @@ end
 ---@param applicantID number
 ---@return boolean success
 function LFGService:InviteApplicant(applicantID)
-    if self:IsMockActive() then
-        local mock = self:GetMockEngine()
-        if mock and mock.InviteApplicant then
-            return mock:InviteApplicant(applicantID)
-        end
-    end
-
     if C_LFGList and C_LFGList.InviteApplicant then
         local ok, err = pcall(C_LFGList.InviteApplicant, applicantID)
         return ok
@@ -424,13 +312,6 @@ end
 ---@param applicantID number
 ---@return boolean success
 function LFGService:DeclineApplicant(applicantID)
-    if self:IsMockActive() then
-        local mock = self:GetMockEngine()
-        if mock and mock.DeclineApplicant then
-            return mock:DeclineApplicant(applicantID)
-        end
-    end
-
     if C_LFGList and C_LFGList.DeclineApplicant then
         local ok, err = pcall(C_LFGList.DeclineApplicant, applicantID)
         return ok

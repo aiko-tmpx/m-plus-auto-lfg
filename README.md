@@ -85,9 +85,8 @@ MPlusAutoLFG/
 ├── MPlusAutoLFG.toc         # TOC file with Midnight/Retail interface version & SavedVariables
 ├── Constants.lua            # Utility tables, class IDs, spec IDs, and role definitions
 ├── Services/
-│   └── LFGService.lua       # Data Access Layer / Blizzard API adapter & mock delegate
+│   └── LFGService.lua       # Data Access Layer / Blizzard API adapter
 ├── Validation.lua           # Declarative Validation Pipeline (Chain of Responsibility)
-├── MockEngine.lua           # Synthetic queue generator & realistic test fixtures
 ├── UI.lua                   # Authentic Blizzard UI (BasicFrameTemplateWithInset & UIPanelButtonTemplate)
 ├── Core.lua                 # FSM orchestrator, event bus, roster tracking & slash commands
 └── README.md                # Project documentation
@@ -95,30 +94,15 @@ MPlusAutoLFG/
 
 ---
 
-## Slash Commands & Developer Controls
+## Slash Commands & Controls
 
 | Command | Description |
 | :--- | :--- |
 | `/malfg` | Toggle main floating HUD window |
 | `/malfg start` | Read active keystone, calculate dynamic ilvl, and create automated LFG listing |
 | `/malfg pause` | Pause or resume automated queue evaluation |
-| `/malfg debug` | Toggle verbose evaluation chat logs (works for real listings & simulations) |
-| `/malfg sim` | Ingest 7 synthetic test fixtures into the queue for offline testing |
-| `/malfg sim leaver` | Simulate an invited candidate declining/leaving to test slot recovery |
-| `/malfg sim off` | Stop offline simulation and return to live Premade Groups mode |
-| `/malfg reset` | Wipe simulation, reset pending invites, and restore frame positions |
-
----
-
-## Test Fixtures Included in `MockEngine`
-
-1. **`Valeera`** (Subtlety Rogue, ilvl 636, Score 2850, +16 Timed): High-score DPS missing BL/CR; tests utility dynamic lock rejection.
-2. **`Baine`** (Protection Warrior, ilvl 605, Score 2100, +14 Timed): Undergeared Tank; triggers dynamic ilvl threshold reject.
-3. **`Anduin`** (Holy Priest, ilvl 630, Score 2250, +12 Timed): Low-experience Healer; triggers experience ($N-2$) threshold reject.
-4. **`Jaina`** (Frost Mage, ilvl 633, Score 2680, +15 Timed): Valid Mage offering BL with verified dungeon experience; passes validation.
-5. **`Khadgar`** (Frost Mage, ilvl 640, Score 2920, +17 Timed): Duplicate spec collision; tests spec/class exclusivity.
-6. **`Bolvar`** (Blood DK, ilvl 635, Score 2710, +15 Timed): Valid Tank with Combat Resurrection.
-7. **`Malfurion`** (Resto Druid, ilvl 634, Score 2690, +15 Timed): Valid Healer with Combat Resurrection.
+| `/malfg debug` | Toggle verbose applicant evaluation chat logs |
+| `/malfg reset` | Reset queue state, pending invites, and restore frame positions |
 
 ---
 
@@ -131,8 +115,5 @@ MPlusAutoLFG/
 4. **Testing with Real Premade Groups**:
    - Turn on verbose debugging: `/malfg debug`
    - Click **"Start Queue"** (or list your keystone in the native Premade Groups UI).
-   - As real players apply, `MPlusAutoLFG` prints every candidate evaluation to chat (`[FIFO]`, `[REJECT]`), showing why applicants pass or fail rules in real time.
+   - As players apply, `MPlusAutoLFG` prints every candidate evaluation to chat (`[FIFO]`, `[REJECT]`), showing why applicants pass or fail rules in real time.
    - Click the prominent Blizzard-native **"CLICK TO INVITE"** button to invite the top qualified applicant.
-5. **Offline Simulation**:
-   - Run `/malfg sim` to inject the 7 test fixtures into the queue.
-   - Run `/malfg sim off` or `/malfg reset` when finished.

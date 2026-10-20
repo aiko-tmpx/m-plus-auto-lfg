@@ -125,7 +125,7 @@ end
 ---Check if debug mode is active
 ---@return boolean
 function ns.IsDebugMode()
-    return (MPlusAutoLFGDB and MPlusAutoLFGDB.debug == true) or (ns.MockEngine and ns.MockEngine:IsEnabled())
+    return MPlusAutoLFGDB and MPlusAutoLFGDB.debug == true
 end
 
 -------------------------------------------------------------------------------
@@ -450,37 +450,26 @@ function Core:StartMatchmaking()
     local title = format(ns.DefaultConfig.listingTitleTemplate, activeKeystone.keystoneLevel)
     local desc = ns.DefaultConfig.listingDescTemplate
 
-    if ns.LFGService:IsMockActive() then
-        Logger:Info("MOCK", format("Starting simulated queue for %s +%d (Min ilvl: %d)...", activeKeystone.dungeonName, activeKeystone.keystoneLevel, requiredIlvl))
-        ns.LFGService:CreateListing(activeKeystone.activityID, requiredIlvl, title, desc)
+    if ns.LFGService:HasActiveListing() then
         self:StartStopwatch()
-        self:SetState(ns.States.LISTED, "Simulated listing started")
+        local rosterContext = self:GetRosterContext()
+        local nextState = (rosterContext.totalCount > 1) and ns.States.ASSEMBLING or ns.States.LISTED
+        self:SetState(nextState, "Attached to active Premade Groups listing")
         self:EvaluateQueue()
-        ns.UI:Show()
         self:UpdateUI()
+        Logger:Info("QUEUE", format("Connected to Premade Groups listing for %s +%d. Monitoring real applicants (Debug: %s)...", activeKeystone.dungeonName, activeKeystone.keystoneLevel, ns.IsDebugMode() and "|cff00ff00ON|r" or "OFF"))
     else
-        -- Real client mode (Live or Debug Mode with Real Listing)
-        if ns.LFGService:HasActiveListing() then
+        Logger:Info("LISTING", format("Listing group for %s +%d (Min ilvl: %d)...", activeKeystone.dungeonName, activeKeystone.keystoneLevel, requiredIlvl))
+        local success = ns.LFGService:CreateListing(activeKeystone.activityID, requiredIlvl, title, desc)
+        if success then
             self:StartStopwatch()
             local rosterContext = self:GetRosterContext()
             local nextState = (rosterContext.totalCount > 1) and ns.States.ASSEMBLING or ns.States.LISTED
-            self:SetState(nextState, "Attached to active Premade Groups listing")
+            self:SetState(nextState, "Listing created")
             self:EvaluateQueue()
             self:UpdateUI()
-            Logger:Info("QUEUE", format("Connected to Premade Groups listing for %s +%d. Monitoring real applicants (Debug: %s)...", activeKeystone.dungeonName, activeKeystone.keystoneLevel, ns.IsDebugMode() and "|cff00ff00ON|r" or "OFF"))
         else
-            Logger:Info("LISTING", format("Listing group for %s +%d (Min ilvl: %d)...", activeKeystone.dungeonName, activeKeystone.keystoneLevel, requiredIlvl))
-            local success = ns.LFGService:CreateListing(activeKeystone.activityID, requiredIlvl, title, desc)
-            if success then
-                self:StartStopwatch()
-                local rosterContext = self:GetRosterContext()
-                local nextState = (rosterContext.totalCount > 1) and ns.States.ASSEMBLING or ns.States.LISTED
-                self:SetState(nextState, "Listing created")
-                self:EvaluateQueue()
-                self:UpdateUI()
-            else
-                Logger:Info("LISTING", "Opened Premade Groups. Click 'List Group' to submit your keystone listing.")
-            end
+            Logger:Info("LISTING", "Opened Premade Groups. Click 'List Group' to submit your keystone listing.")
         end
     end
 end
@@ -498,8 +487,6 @@ end
 
 ---Handle Blizzard LFG_LIST_ACTIVE_ENTRY_UPDATE
 function Core:OnActiveEntryUpdated()
-    if ns.LFGService:IsMockActive() then return end
-
     if ns.LFGService:HasActiveListing() then
         if ns.CurrentState == ns.States.IDLE then
             self:StartStopwatch()
@@ -648,60 +635,15 @@ SlashCmdList["MPLUSAUTOLFG"] = function(msg)
             MPlusAutoLFGDB.debug = not MPlusAutoLFGDB.debug
             if MPlusAutoLFGDB.debug then
                 Logger:Info("DEBUG", "|cff00ff00ENABLED|r. Real-time applicant validation logs will be printed to chat.")
-                if ns.LFGService:IsMockActive() then
-                    Logger:Info("DEBUG", "Offline simulation is currently ACTIVE. Type |cff00ff00/malfg sim off|r to return to live client mode.")
-                else
-                    Logger:Info("DEBUG", "Live Premade Groups mode is ACTIVE. Evaluating real applicants.")
-                end
             else
                 Logger:Info("DEBUG", "|cffff4444DISABLED|r. Verbose applicant evaluation logs silenced.")
             end
-        end
-    elseif cmd == "sim" then
-        if arg == "leaver" then
-            -- Simulate invited candidate leaving
-            if ns.LFGService:IsMockActive() then
-                ns.MockEngine:SimulateLeaver()
-            else
-                Logger:Warn("SIM", "Simulation is not active. Run |cff00ff00/malfg sim|r first.")
-            end
-        elseif arg == "off" or arg == "stop" then
-            if ns.MockEngine then
-                ns.MockEngine:Disable()
-            end
-            Core:StopStopwatch()
-            wipe(pendingInvites)
-            Core:RefreshKeystoneInfo()
-            if ns.LFGService:HasActiveListing() then
-                local rosterContext = Core:GetRosterContext()
-                local nextState = (rosterContext.totalCount > 1) and ns.States.ASSEMBLING or ns.States.LISTED
-                Core:SetState(nextState, "Returned to real active listing")
-            else
-                Core:SetState(ns.States.IDLE, "Simulation stopped")
-            end
-            ns.UI:ClearCandidateCard()
-            Core:UpdateUI()
-            Logger:Info("SIM", "Simulation ended. Returned to live Premade Groups mode.")
-        else
-            -- Ensure MockEngine is enabled and populate synthetic applicants
-            if ns.MockEngine and not ns.MockEngine:IsEnabled() then
-                ns.MockEngine:Enable()
-            end
-            ns.MockEngine:SimulateQueueIngestion()
-            Core:SetState(ns.States.LISTED, "Simulated queue populated")
-            ns.UI:Show()
-            Core:EvaluateQueue()
-            Core:UpdateUI()
-            Logger:Info("SIM", "Synthetic queue populated (7 fixtures). Debug logs: " .. (ns.IsDebugMode() and "|cff00ff00ON|r" or "OFF (|cff00ff00/malfg debug|r to enable)"))
         end
     elseif cmd == "start" then
         Core:StartMatchmaking()
     elseif cmd == "pause" then
         ns.TogglePause()
     elseif cmd == "reset" then
-        if ns.MockEngine then
-            ns.MockEngine:Disable()
-        end
         wipe(pendingInvites)
         Core:StopStopwatch()
         Core:RefreshKeystoneInfo()
@@ -711,16 +653,13 @@ SlashCmdList["MPLUSAUTOLFG"] = function(msg)
         end
         ns.UI:ClearCandidateCard()
         Core:UpdateUI()
-        Logger:Info("CORE", "Addon state, simulation, and positions reset.")
+        Logger:Info("CORE", "Addon state, invites, and positions reset.")
     else
         Logger:Info("HELP", "Commands:")
         print("  |cff00ff00/malfg|r - Toggle main HUD")
         print("  |cff00ff00/malfg start|r - Start automated matchmaking queue")
         print("  |cff00ff00/malfg pause|r - Pause / resume queue")
-        print("  |cff00ff00/malfg debug|r - Toggle verbose evaluation chat logs")
-        print("  |cff00ff00/malfg sim|r - Ingest synthetic applicants for offline testing")
-        print("  |cff00ff00/malfg sim leaver|r - Simulate candidate decline / leave")
-        print("  |cff00ff00/malfg sim off|r - Stop simulation and return to live mode")
-        print("  |cff00ff00/malfg reset|r - Wipe simulation, invites, and reset HUD position")
+        print("  |cff00ff00/malfg debug|r - Toggle verbose candidate evaluation logs")
+        print("  |cff00ff00/malfg reset|r - Reset queue state, pending invites, and HUD position")
     end
 end
