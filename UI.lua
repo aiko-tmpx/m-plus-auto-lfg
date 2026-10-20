@@ -36,7 +36,7 @@ function UI:CreateMainHUD()
     -- Use native Blizzard BasicFrameTemplateWithInset for authentic look & feel
     local f = CreateFrame("Frame", "MPlusAutoLFGMainFrame", UIParent, "BasicFrameTemplateWithInset")
     mainFrame = f
-    f:SetSize(340, 310)
+    f:SetSize(340, 275)
     f:SetFrameStrata("DIALOG")
     f:SetToplevel(true)
     f:SetClampedToScreen(true)
@@ -152,14 +152,14 @@ function UI:CreateMainHUD()
     f.candExp = candExp
 
     ---------------------------------------------------------------------------
-    -- Bottom Section: Default Blizzard Action Buttons (UIPanelButtonTemplate)
+    -- Bottom Section: Unified Action Button (UIPanelButtonTemplate)
     ---------------------------------------------------------------------------
-    -- Primary Invite Button using native UIPanelButtonTemplate & SecureActionButtonTemplate
+    -- Primary Action Button: "Open LFG Window" when idle, "Invite" when candidate ready, "INVITED" when pending
     local inviteBtn = CreateFrame("Button", "MPlusAutoLFGInviteButton", f, "SecureActionButtonTemplate, UIPanelButtonTemplate")
     f.inviteBtn = inviteBtn
-    inviteBtn:SetSize(312, 30)
+    inviteBtn:SetSize(312, 28)
     inviteBtn:SetPoint("TOP", candBox, "BOTTOM", 0, -8)
-    inviteBtn:SetText("CLICK TO INVITE")
+    inviteBtn:SetText("Open LFG Window")
 
     -- Mouse-click only (no spacebar or keybind exploits)
     inviteBtn:RegisterForClicks("LeftButtonUp")
@@ -167,23 +167,11 @@ function UI:CreateMainHUD()
     inviteBtn:SetScript("OnClick", function(self)
         if currentCandidate and currentCandidate.applicantID then
             UI:OnInviteClicked(currentCandidate)
-        end
-    end)
-    inviteBtn:Disable()
-
-    -- Secondary Control Button: [Start Queue / Delist Group]
-    local startBtn = CreateFrame("Button", "MPlusAutoLFGStartButton", f, "UIPanelButtonTemplate")
-    startBtn:SetSize(312, 24)
-    startBtn:SetPoint("BOTTOM", f, "BOTTOM", 0, 12)
-    startBtn:SetText("Start Queue")
-    f.startBtn = startBtn
-
-    startBtn:SetScript("OnClick", function()
-        if ns.Core then
-            if ns.LFGService:HasActiveListing() or ns.CurrentState == ns.States.LISTED or ns.CurrentState == ns.States.ASSEMBLING then
-                ns.Core:StopMatchmaking()
-            else
+        elseif not ns.LFGService:HasActiveListing() and (ns.CurrentState == ns.States.IDLE) then
+            if ns.Core then
                 ns.Core:StartMatchmaking()
+            elseif ns.LFGService then
+                ns.LFGService:OpenGroupFinder()
             end
         end
     end)
@@ -261,11 +249,14 @@ function UI:UpdateHeader(challengeMapID, keyLevel, dungeonName, iconTexture, sta
     end
     mainFrame.statusText:SetText(format("Status: %s", stateFormatted))
 
-    -- Update Start / Delist button label
-    if ns.LFGService:HasActiveListing() or state == ns.States.LISTED or state == ns.States.ASSEMBLING then
-        mainFrame.startBtn:SetText("Delist Group")
-    else
-        mainFrame.startBtn:SetText("Start Queue")
+    -- Update primary action button state when idle vs active listing
+    local isListed = ns.LFGService:HasActiveListing() or (state == ns.States.LISTED) or (state == ns.States.ASSEMBLING) or (state == ns.States.FULL)
+    if not isListed then
+        mainFrame.inviteBtn:SetText("Open LFG Window")
+        mainFrame.inviteBtn:Enable()
+    elseif not currentCandidate then
+        mainFrame.inviteBtn:SetText("Invite")
+        mainFrame.inviteBtn:Disable()
     end
 end
 
@@ -339,7 +330,7 @@ function UI:UpdateCandidateCard(candidate, isInvited)
         mainFrame.inviteBtn:SetText("INVITED")
         mainFrame.inviteBtn:Disable()
     else
-        mainFrame.inviteBtn:SetText(format("CLICK TO INVITE: %s", candidate.name))
+        mainFrame.inviteBtn:SetText("Invite")
         mainFrame.inviteBtn:Enable()
     end
 end
@@ -359,8 +350,14 @@ function UI:ClearCandidateCard()
     mainFrame.candMetrics:SetText("No qualifying applicants currently in queue.")
     mainFrame.candExp:SetText("")
 
-    mainFrame.inviteBtn:SetText("CLICK TO INVITE")
-    mainFrame.inviteBtn:Disable()
+    local isListed = ns.LFGService:HasActiveListing() or (ns.CurrentState and ns.CurrentState ~= ns.States.IDLE)
+    if isListed then
+        mainFrame.inviteBtn:SetText("Invite")
+        mainFrame.inviteBtn:Disable()
+    else
+        mainFrame.inviteBtn:SetText("Open LFG Window")
+        mainFrame.inviteBtn:Enable()
+    end
 end
 
 -------------------------------------------------------------------------------

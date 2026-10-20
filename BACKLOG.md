@@ -99,7 +99,8 @@ This document tracks identified bugs, edge cases, and feature refinements to be 
 
 ---
 
-### [ ] Task 8: Streamline HUD Actions - Unified Primary Button & Remove Delist
+### [x] Task 8: Streamline HUD Actions - Unified Primary Button & Remove Delist
+* **Status:** Completed
 * **Reported Behavior / Feature Request:**
   1. Remove the "Start Queue" / "Stop Queue / Delist" button (`no 'delist' button as its not working`).
   2. Replace `"CLICK TO INVITE"` badge text with concise, standard `"Invite"`.
@@ -110,6 +111,11 @@ This document tracks identified bugs, edge cases, and feature refinements to be 
        * Displays **`"INVITED"`** (disabled) when an invitation is actively pending response.
        * Displays **`"Invite"`** (disabled) while awaiting qualified applicants.
   4. Refactor HUD bottom layout to cleanly host the single consolidated action button.
+* **Changes Made:**
+  1. Removed `startBtn` from [`UI.lua`](UI.lua).
+  2. Consolidated bottom action into a single 312x28 button (`inviteBtn`).
+  3. Wired dynamic contextual states: `"Open LFG Window"` when idle, `"Invite"` when candidate available, `"INVITED"` when invitation pending.
+  4. Resized window from 310 to 275px height.
 
 ---
 
