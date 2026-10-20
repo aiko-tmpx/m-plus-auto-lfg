@@ -69,7 +69,8 @@ end
 
 ---Rule 3: Dungeon Experience Threshold
 ---Enforces verified timed experience for the exact active dungeon.
----Key <= 15: Requires timed completion at >= (KeyLevel - 2).
+---Key <= 10: No experience required (open to all).
+---Key 11 to 15: Requires timed completion at >= (KeyLevel - 2).
 ---Key > 15:  Requires timed completion at >= (KeyLevel - 1).
 ---Keys >= TargetKeyLevel are strictly valid (retries / score upgrades / farm).
 ---@param candidate table
@@ -77,8 +78,8 @@ end
 ---@return boolean passed, string? reason
 function ns.CheckExperience(candidate, rosterContext)
     local targetKey = rosterContext.targetKeyLevel or 0
-    if targetKey <= 0 then
-        -- No keystone level specified, pass by default
+    if targetKey <= 10 then
+        -- Keys <= 10 have no experience requirement
         return true, nil
     end
 

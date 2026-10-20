@@ -38,7 +38,8 @@ Passed directly to native listing creation (`requiredItemLevel`) and verified in
 
 ### 3. Dungeon Experience Threshold
 Evaluates applicant's best run on the exact dungeon of the active keystone:
-- **Target Key Level $\le$ 15**: Must have completed the exact same dungeon at $\ge (\text{Target Key} - 2)$ **within timer**.
+- **Target Key Level $\le$ 10**: No experience required (open to all applicants).
+- **Target Key Level 11 to 15**: Must have completed the exact same dungeon at $\ge (\text{Target Key} - 2)$ **within timer**.
 - **Target Key Level $>$ 15**: Must have completed the exact same dungeon at $\ge (\text{Target Key} - 1)$ **within timer**.
 - **Keys $\ge$ Target Key Level**: Strictly valid (retries, score upgrades, farm).
 
