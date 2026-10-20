@@ -2,7 +2,7 @@
     MPlusAutoLFG - Matchmaking Assistant for Mythic+
     File: Core.lua
     Description: Finite State Machine (FSM), central Event Bus, roster management,
-                 FIFO applicant orchestrator, leaver resilience, listing automation, and slash commands.
+                 applicant orchestrator, leaver resilience, listing automation, and slash commands.
 ]]
 
 local addonName, ns = ...
@@ -256,12 +256,22 @@ function Core:GetRosterContext()
 end
 
 -------------------------------------------------------------------------------
--- FIFO Applicant Evaluation & Matchmaking Engine
+-- Applicant Evaluation & Matchmaking Engine
 -------------------------------------------------------------------------------
----Strict FIFO candidate evaluation across the active applicant queue
+---Candidate evaluation across the active applicant queue
 function Core:EvaluateQueue()
     -- Guard: Only evaluate in active matchmaking states
     if ns.CurrentState == ns.States.IDLE or ns.CurrentState == ns.States.FULL then
+        return
+    end
+
+    -- Guard: Only party leader can evaluate and invite
+    if not self:IsLeader() then
+        return
+    end
+
+    -- Guard: Keystone mismatch halts automated candidate display
+    if self.isKeystoneMismatch then
         return
     end
 
@@ -289,7 +299,7 @@ function Core:EvaluateQueue()
 
     local bestCandidate = nil
 
-    -- Strict FIFO traversal (applicants array is pre-sorted ascending by applicantID)
+    -- Queue order traversal (applicants array is pre-sorted ascending by applicantID)
     for _, applicantID in ipairs(applicants) do
         -- Skip candidates already invited and pending
         if not pendingInvites[applicantID] then
@@ -306,7 +316,7 @@ function Core:EvaluateQueue()
                         candidate.dungeonScore = mapScore
                     end
 
-                    Logger:Debug("FIFO", format("Evaluating applicant '%s' (%s %s, ilvl %d, M+ Score %d, best run +%d%s)...",
+                    Logger:Debug("QUEUE", format("Evaluating applicant '%s' (%s %s, ilvl %d, M+ Score %d, best run +%d%s)...",
                         candidate.name, candidate.role, candidate.localizedClass or candidate.classFilename,
                         candidate.itemLevel or 0, candidate.dungeonScore or 0, candidate.bestRunLevel or 0,
                         candidate.bestRunFinishedSuccess and " Timed" or " Overtime"))
@@ -315,8 +325,8 @@ function Core:EvaluateQueue()
                     local isValid, rejectReason, validatorName = ns.ValidateCandidate(candidate, rosterContext)
                     if isValid then
                         bestCandidate = candidate
-                        Logger:Debug("FIFO", format("Candidate '%s' (ID %d) passed all validation checks.", candidate.name, applicantID))
-                        break -- FIFO: Select first qualifying candidate immediately!
+                        Logger:Debug("QUEUE", format("Candidate '%s' (ID %d) passed all validation checks.", candidate.name, applicantID))
+                        break -- Select first qualifying candidate immediately
                     else
                         Logger:Debug("REJECT", format("Applicant '%s' (ID %d) rejected by %s: %s", candidate.name, applicantID, validatorName or "Rule", rejectReason or "Failed"))
                     end
@@ -442,19 +452,70 @@ end
 -------------------------------------------------------------------------------
 -- Keystone & Listing Automation
 -------------------------------------------------------------------------------
----Refresh active keystone details
+---Check if local player is the party leader
+---@return boolean
+function Core:IsLeader()
+    if not IsInGroup() then return true end
+    return UnitIsGroupLeader("player") == true
+end
+
+---Refresh active keystone details and sync with active Premade Groups listing
 function Core:RefreshKeystoneInfo()
-    local cMapID, kLevel, dName, icon, actID = ns.LFGService:GetOwnedKeystoneInfo()
-    activeKeystone.challengeMapID = cMapID
-    activeKeystone.keystoneLevel = kLevel
-    activeKeystone.dungeonName = dName
-    activeKeystone.iconTexture = icon
-    activeKeystone.activityID = actID
+    local bagMapID, bagKeyLevel, bagDungeonName, bagIcon, bagActID = ns.LFGService:GetOwnedKeystoneInfo()
+    local hasListing, listMapID, listKeyLevel, listDungeonName, listIcon, listReqIlvl, listActID = ns.LFGService:GetActiveListingDetails()
+
+    if hasListing then
+        activeKeystone.challengeMapID = listMapID > 0 and listMapID or bagMapID
+        activeKeystone.keystoneLevel = listKeyLevel > 0 and listKeyLevel or bagKeyLevel
+        activeKeystone.dungeonName = (listDungeonName and listDungeonName ~= "" and listDungeonName ~= "Unknown Dungeon") and listDungeonName or bagDungeonName
+        activeKeystone.iconTexture = listIcon or bagIcon
+        activeKeystone.activityID = listActID > 0 and listActID or bagActID
+        activeKeystone.requiredItemLevel = listReqIlvl
+
+        -- Check keystone mismatch (listed key differs from bag key)
+        if bagKeyLevel > 0 and listKeyLevel > 0 and bagKeyLevel ~= listKeyLevel then
+            self.isKeystoneMismatch = true
+            self.mismatchReason = format("Listed key (+%d) != Bag key (+%d)", listKeyLevel, bagKeyLevel)
+        elseif bagMapID > 0 and listMapID > 0 and bagMapID ~= listMapID then
+            self.isKeystoneMismatch = true
+            self.mismatchReason = format("Listed dungeon != Bag dungeon")
+        else
+            self.isKeystoneMismatch = false
+            self.mismatchReason = nil
+        end
+
+        -- Auto-attach if idle
+        if ns.CurrentState == ns.States.IDLE then
+            self:StartStopwatch()
+            local rosterContext = self:GetRosterContext()
+            local nextState = (rosterContext.totalCount > 1) and ns.States.ASSEMBLING or ns.States.LISTED
+            self:SetState(nextState, "Attached to active Premade Groups listing")
+            self:EvaluateQueue()
+        end
+    else
+        activeKeystone.challengeMapID = bagMapID
+        activeKeystone.keystoneLevel = bagKeyLevel
+        activeKeystone.dungeonName = bagDungeonName
+        activeKeystone.iconTexture = bagIcon
+        activeKeystone.activityID = bagActID
+        self.isKeystoneMismatch = false
+        self.mismatchReason = nil
+    end
 end
 
 ---Start automated matchmaking listing
 function Core:StartMatchmaking()
+    if not self:IsLeader() then
+        Logger:Warn("ROSTER", "Only the party leader can start matchmaking.")
+        return
+    end
+
     self:RefreshKeystoneInfo()
+
+    if self.isKeystoneMismatch then
+        Logger:Warn("LISTING", format("Cannot start matchmaking: %s.", self.mismatchReason or "Keystone mismatch"))
+        return
+    end
 
     -- 1. If group is already listed in Premade Groups, attach immediately
     if ns.LFGService:HasActiveListing() then
@@ -551,6 +612,7 @@ eventFrame:RegisterEvent("LFG_LIST_APPLICANT_LIST_UPDATED")
 eventFrame:RegisterEvent("LFG_LIST_APPLICANT_UPDATED")
 eventFrame:RegisterEvent("LFG_LIST_ACTIVE_ENTRY_UPDATE")
 eventFrame:RegisterEvent("GROUP_ROSTER_UPDATE")
+eventFrame:RegisterEvent("PARTY_LEADER_CHANGED")
 eventFrame:RegisterEvent("CHALLENGE_MODE_KEYSTONE_SLOTTED")
 
 -- Periodic stopwatch and queue refresh ticker (every 1.0s)
@@ -578,6 +640,9 @@ eventFrame:SetScript("OnEvent", function(self, event, ...)
                     MPlusAutoLFGDB[k] = v
                 end
             end
+            if ns.InitializeSettings then
+                ns.InitializeSettings()
+            end
         elseif loadedName == "Blizzard_LFGList" or loadedName == "Blizzard_GroupFinder" or loadedName == "Blizzard_PVEFrame" then
             if ns.LFGService and ns.LFGService.HookEntryCreation then
                 ns.LFGService:HookEntryCreation()
@@ -587,6 +652,9 @@ eventFrame:SetScript("OnEvent", function(self, event, ...)
             end
         end
     elseif event == "PLAYER_LOGIN" then
+        if ns.InitializeSettings then
+            ns.InitializeSettings()
+        end
         ns.UI:Initialize()
         Core:RefreshKeystoneInfo()
         Core:UpdateUI()
@@ -596,7 +664,7 @@ eventFrame:SetScript("OnEvent", function(self, event, ...)
         end
 
         local debugStatus = (MPlusAutoLFGDB and MPlusAutoLFGDB.debug) and "|cff00ff00ON|r" or "OFF"
-        Logger:Info("CORE", format("v%s loaded. Type |cff00ff00/malfg|r to open HUD, |cff00ff00/malfg debug|r for verbose evaluation logs (currently %s).", ns.VERSION, debugStatus))
+        Logger:Info("CORE", format("v%s loaded. Type |cff00ff00/malfg|r to open HUD, |cff00ff00/malfg config|r for options.", ns.VERSION))
     elseif event == "LFG_LIST_ACTIVE_ENTRY_UPDATE" then
         Core:OnActiveEntryUpdated()
     elseif event == "LFG_LIST_APPLICANT_LIST_UPDATED" then
@@ -606,7 +674,21 @@ eventFrame:SetScript("OnEvent", function(self, event, ...)
         local applicantID = ...
         Core:OnApplicantUpdated(applicantID)
     elseif event == "GROUP_ROSTER_UPDATE" then
+        if not Core:IsLeader() then
+            if ns.CurrentState == ns.States.LISTED or ns.CurrentState == ns.States.ASSEMBLING then
+                Core:StopMatchmaking()
+                Logger:Warn("ROSTER", "Lost party leadership. Matchmaking stopped.")
+            end
+        end
         Core:OnGroupRosterUpdated()
+    elseif event == "PARTY_LEADER_CHANGED" then
+        if not Core:IsLeader() then
+            if ns.CurrentState == ns.States.LISTED or ns.CurrentState == ns.States.ASSEMBLING then
+                Core:StopMatchmaking()
+                Logger:Warn("ROSTER", "Lost party leadership. Matchmaking stopped.")
+            end
+        end
+        Core:UpdateUI()
     elseif event == "CHALLENGE_MODE_KEYSTONE_SLOTTED" then
         Core:RefreshKeystoneInfo()
         Core:UpdateUI()
@@ -638,6 +720,18 @@ SlashCmdList["MPLUSAUTOLFG"] = function(msg)
     if cmd == "" then
         -- Toggle main HUD
         ns.UI:Toggle()
+    elseif cmd == "config" or cmd == "options" or cmd == "opt" then
+        if ns.OpenOptions then
+            ns.OpenOptions()
+        end
+    elseif cmd == "mode" then
+        if MPlusAutoLFGDB then
+            MPlusAutoLFGDB.rulesMode = (MPlusAutoLFGDB.rulesMode == "CUSTOM") and "DEFAULT" or "CUSTOM"
+            Logger:Info("RULES", format("Rules mode switched to: |cffffffff%s|r", MPlusAutoLFGDB.rulesMode))
+            if ns.UI and ns.UI.UpdateModeButton then ns.UI:UpdateModeButton() end
+            Core:EvaluateQueue()
+            Core:UpdateUI()
+        end
     elseif cmd == "debug" then
         if MPlusAutoLFGDB then
             MPlusAutoLFGDB.debug = not MPlusAutoLFGDB.debug
@@ -663,8 +757,11 @@ SlashCmdList["MPLUSAUTOLFG"] = function(msg)
     else
         Logger:Info("HELP", "Commands:")
         print("  |cff00ff00/malfg|r - Toggle main HUD")
+        print("  |cff00ff00/malfg config|r - Open AddOn Settings menu")
+        print("  |cff00ff00/malfg mode|r - Toggle Rules Mode (Default vs Custom)")
         print("  |cff00ff00/malfg start|r - Start automated matchmaking queue")
         print("  |cff00ff00/malfg debug|r - Toggle verbose candidate evaluation logs")
         print("  |cff00ff00/malfg reset|r - Reset queue state, pending invites, and HUD position")
     end
 end
+

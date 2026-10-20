@@ -168,6 +168,13 @@ ns.IlvlThresholdOffsets = {
 ns.DefaultConfig = {
     debug = false,
     autoDelistOnFull = true,
+    rulesMode = "DEFAULT", -- "DEFAULT" (auto-tiered) or "CUSTOM" (user rules)
+    customRules = {
+        keyDropTolerance = 2,      -- Allowed key difference [TargetKey - X] (clamped to +2)
+        requireTimedRun = true,    -- Ignore depleted / overtime runs
+        ilvlDeficit = 10,          -- Allowed item level deficit below key recommendation
+        requireIlvlLeader = false, -- Require applicant ilvl >= leader ilvl
+    },
     minimap = {
         hide = false,
         angle = 220,
@@ -179,7 +186,7 @@ ns.DefaultConfig = {
         y = 100,
     },
     listingTitleTemplate = "MPlusAutoLFG: +%d",
-    listingDescTemplate = "MPlusAutoLFG auto-matching queue. Invites are automated in FIFO order: 1 BL, 1 CR, verified experience. Fast formation.",
+    listingDescTemplate = "MPlusAutoLFG auto-matching queue. Invites are automated in queue order: 1 BL, 1 CR, verified experience. Fast formation.",
 }
 
 -------------------------------------------------------------------------------

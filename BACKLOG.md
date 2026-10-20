@@ -43,7 +43,7 @@ This document tracks identified bugs, edge cases, and feature refinements to be 
 * **Changes Made:**
   1. Added member count change detection (`lastMemberCount`) in `Core:OnGroupRosterUpdated()`.
   2. If member count decreases, logs warning and immediately triggers `Core:UpdateUI()` to recalculate open slots, `BL [Need/Ready]`, and `CR [Need/Ready]`.
-  3. Automatically triggers `Core:EvaluateQueue()` whenever member count is below 5 in active states (`LISTED` or `ASSEMBLING`), ensuring the queue selects a new FIFO applicant satisfying newly missing utility.
+  3. Automatically triggers `Core:EvaluateQueue()` whenever member count is below 5 in active states (`LISTED` or `ASSEMBLING`), ensuring the queue selects a new applicant satisfying newly missing utility.
   4. Automatically transitions from `FULL` back to `ASSEMBLING` if a member leaves a full group before starting.
 
 ---
@@ -54,13 +54,13 @@ This document tracks identified bugs, edge cases, and feature refinements to be 
   Currently, clicking "CLICK TO INVITE" immediately clears or jumps. The addon should instead wait until the invitation is resolved (accepted, declined, or timed out). While waiting:
   * The candidate showcase card must remain locked on the invited candidate.
   * The button should show `INVITED` and be disabled.
-  * Only after the candidate joins the group (`GROUP_ROSTER_UPDATE`) or declines/times out (`LFG_LIST_APPLICANT_UPDATED`) should the next qualified FIFO applicant be shown.
+  * Only after the candidate joins the group (`GROUP_ROSTER_UPDATE`) or declines/times out (`LFG_LIST_APPLICANT_UPDATED`) should the next qualified applicant be shown.
 * **Changes Made:**
   1. Updated `UI:UpdateCandidateCard(candidate, isInvited)`: when `isInvited` is true, changes the button label to `"INVITED"` and disables it while keeping all candidate details locked in place.
   2. In `UI:OnInviteClicked`, immediately calls `UI:UpdateCandidateCard(candidate, true)` on successful invite dispatch.
   3. Added guard in `Core:EvaluateQueue()`: while an invitation is pending (`next(pendingInvites)`), evaluation holds off on showing new candidates.
   4. On `GROUP_ROSTER_UPDATE`: when the invited player joins the roster, `pendingInvites` clears, card resets, and queue evaluation resumes for the next slot.
-  5. On `LFG_LIST_APPLICANT_UPDATED`: if declined, timed out, or cancelled, clears card and immediately re-evaluates the queue to find the next FIFO candidate.
+  5. On `LFG_LIST_APPLICANT_UPDATED`: if declined, timed out, or cancelled, clears card and immediately re-evaluates the queue to find the next candidate.
 
 ---
 
@@ -113,9 +113,9 @@ This document tracks identified bugs, edge cases, and feature refinements to be 
   4. Refactor HUD bottom layout to cleanly host the single consolidated action button.
 * **Changes Made:**
   1. Removed `startBtn` from [`UI.lua`](UI.lua).
-  2. Consolidated bottom action into a single 312x28 button (`inviteBtn`).
+  2. Consolidated bottom action into a single 322x30 button (`inviteBtn`).
   3. Wired dynamic contextual states: `"Open LFG Window"` when idle, `"Invite"` when candidate available, `"INVITED"` when invitation pending.
-  4. Resized window from 310 to 275px height.
+  4. Resized window from 310 to 296px height.
 
 ---
 
@@ -128,22 +128,35 @@ This document tracks identified bugs, edge cases, and feature refinements to be 
   3. Built an interactive **5-Slot Visual Party Roster** (`[Tank] [Healer] [DPS 1] [DPS 2] [DPS 3]`) using native Blizzard role icons:
      * When slot is filled: Displays full brightness with class-colored border and member tooltip.
      * When slot is open: Displays desaturated silhouette with open role tooltip.
-  4. Built visual **Bloodlust & Combat Res Badges** (`spell_nature_bloodlust` and `spell_nature_reincarnation`):
-     * When utility is present: Full brightness, glowing green border (`READY`).
-     * When utility is missing: Desaturated icon, glowing red border (`NEED`).
-  5. Redesigned candidate showcase card into a modern dark card panel with score tier colorization (`C_ChallengeMode.GetDungeonScoreRarityColor`), 28x28 spec icon, class-colored candidate name, and clean stat typography.
-  6. Sized window compactly to 350x288 with centered 322x30 unified action button.
+  4. Redesigned candidate showcase card into a modern dark card panel with score tier colorization (`C_ChallengeMode.GetDungeonScoreRarityColor`), 28x28 spec icon, class-colored candidate name, and clean stat typography.
+  5. Sized window compactly to 350x296 with centered 322x30 unified action button.
+
+---
+
+### [x] Task 10: Modern Blizzlike Overhaul, Rules Modes, Options Menu & Guards
+* **Status:** Completed
+* **Reported Requests:**
+  1. Replace Unicode bullet `●` with a circular indicator texture (`Interface\Common\Indicator-Green`, `Yellow`, `Gray`, `Red`) because `●` renders as a missing glyph box in localized/custom fonts.
+  2. Remove the clunky boxed roles block. Just draw 5 clean role icons side by side (`Tank`, `Healer`, `DPS`, `DPS`, `DPS`), full brightness when present, desaturated (alpha 0.35) when missing.
+  3. Just write simple colored text for utilities: `BL` (green if ready, red if missing) and `CR` (green if ready, red if missing) without square red boxes or borders.
+  4. Remove the word "FIFO" across all UI labels, comments, and documentation (`NEXT QUALIFIED APPLICANT`).
+  5. Add an AddOn Options Menu in Blizzard's native Settings panel (`Settings.RegisterCanvasLayoutCategory` / `/aiko`-style options in `Game Menu -> Options -> AddOns -> MPlusAutoLFG`):
+     - Sliders: Allowed Key Level Drop `[Key - X]` (0 to 5, default 2, clamped to min +2); Allowed Item Level Deficit (0 to 30, default 10).
+     - Checkboxes: Require Timed Run (ignore depleted runs); Require Candidate ilvl >= Party Leader ilvl.
+  6. Add HUD Mode Switcher button (`Default` vs `Custom Rules`) with an `[Options]` shortcut button.
+  7. Party Leader & Mismatch Guards:
+     - If not party leader: disable controls, show amber warning (`"Only party leader can manage matchmaking"`), handle `PARTY_LEADER_CHANGED` / `GROUP_ROSTER_UPDATE`.
+     - If active listing in LFG differs from player's bag keystone: disable controls, show red warning (`"Listing Mismatch: Listed key != Bag key"`).
+  8. Auto-Sync Active Listing: when a group is already listed in Premade Groups upon login or opening the HUD, automatically attach to it, sync keystone and dungeon details, and begin queue evaluation.
+* **Changes Made:**
+  1. Created [`Settings.lua`](Settings.lua) and registered it in [`MPlusAutoLFG.toc`](MPlusAutoLFG.toc).
+  2. Implemented `LFGService:GetActiveListingDetails()` in [`Services/LFGService.lua`](Services/LFGService.lua).
+  3. Updated `ns.CheckItemLevel` and `ns.CheckExperience` in [`Validation.lua`](Validation.lua) to support both `DEFAULT` and `CUSTOM` modes.
+  4. Updated [`Core.lua`](Core.lua) with leader checking, mismatch detection, auto-syncing, and slash commands (`/malfg config`, `/malfg mode`).
+  5. Completely rewrote [`UI.lua`](UI.lua) with native circular indicator textures, unboxed 5-slot role display, clean text BL/CR, rules mode switcher, options shortcut, warning banner, and safety guards.
+  6. Verified 100% Lua 5.1 AST syntax validity with `luaparse` across all files.
 
 ---
 
 ## Execution Order
-We will address these one by one:
-1. **Task 1:** Fix Premade Groups Category Selection (Dungeons Tab Navigation) - *Completed*.
-2. **Task 2:** Remove Pause Queue Button & Simplify HUD Controls - *Completed*.
-3. **Task 3:** Real-Time Roster & Utility Requirement Updates on Leaver - *Completed*.
-4. **Task 4:** Invite State Handling & Candidate Card Lock (Show "INVITED") - *Completed*.
-5. **Task 5:** Replace Role Text with Spec Icons - *Completed*.
-6. **Task 6:** Replace Window Header Title with Addon Name - *Completed*.
-7. **Task 7:** Add 'List AutoLFG Group' Red Blizzard-Style Button to LFG Window - *Completed*.
-8. **Task 8:** Streamline HUD Actions - Unified Primary Button & Remove Delist - *Completed*.
-9. **Task 9:** HUD Window UI/UX Full Redesign - *Completed*.
+All tasks 1 through 10 are completed and validated.

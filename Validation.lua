@@ -53,15 +53,34 @@ end
 
 ---Rule 2: Dynamic Item Level Gatekeeper
 ---Validates applicant item level against the dynamic threshold set by leader ilvl & key level.
+---Supports Default mode and Custom rules configured in Settings.
 ---@param candidate table
 ---@param rosterContext table
 ---@return boolean passed, string? reason
 function ns.CheckItemLevel(candidate, rosterContext)
     local requiredIlvl = rosterContext.requiredItemLevel or 0
     local applicantIlvl = candidate.itemLevel or 0
+    local leaderIlvl = rosterContext.leaderItemLevel or 0
 
-    if applicantIlvl < requiredIlvl then
-        return false, format("Item level %d is below required threshold (%d)", applicantIlvl, requiredIlvl)
+    local isCustom = (MPlusAutoLFGDB and MPlusAutoLFGDB.rulesMode) == "CUSTOM"
+    local customRules = MPlusAutoLFGDB and MPlusAutoLFGDB.customRules
+
+    if isCustom and customRules then
+        if customRules.requireIlvlLeader and leaderIlvl > 0 then
+            if applicantIlvl < leaderIlvl then
+                return false, format("Applicant item level %d is below group leader ilvl (%d)", applicantIlvl, leaderIlvl)
+            end
+        end
+
+        local deficit = customRules.ilvlDeficit or 10
+        local minAllowed = max(0, requiredIlvl - deficit)
+        if applicantIlvl < minAllowed then
+            return false, format("Item level %d is below minimum custom threshold (%d)", applicantIlvl, minAllowed)
+        end
+    else
+        if applicantIlvl < requiredIlvl then
+            return false, format("Item level %d is below required threshold (%d)", applicantIlvl, requiredIlvl)
+        end
     end
 
     return true, nil
@@ -69,20 +88,17 @@ end
 
 ---Rule 3: Dungeon Experience Threshold
 ---Enforces verified timed experience for the exact active dungeon.
----Key <= 10: No experience required (open to all).
----Key 11 to 15: Requires timed completion at >= (KeyLevel - 2).
----Key > 15:  Requires timed completion at >= (KeyLevel - 1).
----Keys >= TargetKeyLevel are strictly valid (retries / score upgrades / farm).
+---Default Mode:
+---  * Keys <= 6: Open to all applicants (no experience required).
+---  * Keys 7 to 11: Requires timed completion at >= (KeyLevel - 2).
+---  * Keys >= 12: Requires timed completion at >= (KeyLevel - 1).
+---Custom Mode:
+---  * Follows configured keyDropTolerance slider (clamped to min +2) and requireTimedRun checkbox.
 ---@param candidate table
 ---@param rosterContext table
 ---@return boolean passed, string? reason
 function ns.CheckExperience(candidate, rosterContext)
     local targetKey = rosterContext.targetKeyLevel or 0
-    if targetKey <= 10 then
-        -- Keys <= 10 have no experience requirement
-        return true, nil
-    end
-
     local bestRun = candidate.bestRunLevel or 0
     local timed = candidate.bestRunFinishedSuccess == true
 
@@ -91,15 +107,39 @@ function ns.CheckExperience(candidate, rosterContext)
         return true, nil
     end
 
-    local minRequiredLevel = (targetKey <= 15) and (targetKey - 2) or (targetKey - 1)
-    minRequiredLevel = max(0, minRequiredLevel)
+    local isCustom = (MPlusAutoLFGDB and MPlusAutoLFGDB.rulesMode) == "CUSTOM"
+    local customRules = MPlusAutoLFGDB and MPlusAutoLFGDB.customRules
 
-    if bestRun < minRequiredLevel then
-        return false, format("Best run (+%d) is below minimum required (+%d) for key +%d", bestRun, minRequiredLevel, targetKey)
-    end
+    if isCustom and customRules then
+        local tolerance = customRules.keyDropTolerance or 2
+        local minRequiredLevel = max(2, targetKey - tolerance)
 
-    if not timed then
-        return false, format("Best run (+%d) was not completed within the timer", bestRun)
+        if bestRun < minRequiredLevel then
+            return false, format("Best run (+%d) is below custom required level (+%d) for key +%d", bestRun, minRequiredLevel, targetKey)
+        end
+
+        if customRules.requireTimedRun and not timed then
+            return false, format("Best run (+%d) was not completed within the timer", bestRun)
+        end
+    else
+        -- Default Mode (Smart automated tiered logic):
+        -- Keys <= 6: Open to all applicants meeting the role and basic item level
+        if targetKey <= 6 then
+            return true, nil
+        end
+
+        -- Keys 7 to 11: Requires [Key - 2]
+        -- Keys >= 12: Requires [Key - 1]
+        local drop = (targetKey <= 11) and 2 or 1
+        local minRequiredLevel = max(2, targetKey - drop)
+
+        if bestRun < minRequiredLevel then
+            return false, format("Best run (+%d) is below minimum tier requirement (+%d) for key +%d", bestRun, minRequiredLevel, targetKey)
+        end
+
+        if not timed then
+            return false, format("Best run (+%d) was not completed within the timer", bestRun)
+        end
     end
 
     return true, nil

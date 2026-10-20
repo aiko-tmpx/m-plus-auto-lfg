@@ -1,9 +1,9 @@
 --[[
     MPlusAutoLFG - Matchmaking Assistant for Mythic+
     File: UI.lua
-    Description: Authentic Blizzard-native UI styling using BasicFrameTemplateWithInset,
-                 InsetFrameTemplate, and UIPanelButtonTemplate. Zero custom flat/vibe-coded styling.
-                 Group composition is omitted as party unit frames provide this natively.
+    Description: Modern Blizzard Dragonflight / The War Within (TWW) HUD styling.
+                 Uses native indicator textures, unboxed 5-role party layout, clean text utilities (BL / CR),
+                 rules mode toggle, native settings integration, and leader/mismatch safety guards.
 ]]
 
 local addonName, ns = ...
@@ -74,7 +74,7 @@ function UI:CreateMainHUD()
     -- Modern Dragonflight / The War Within (TWW) dark slate canvas
     local f = CreateFrame("Frame", "MPlusAutoLFGMainFrame", UIParent)
     mainFrame = f
-    f:SetSize(350, 288)
+    f:SetSize(350, 296)
     f:SetFrameStrata("DIALOG")
     f:SetToplevel(true)
     f:SetClampedToScreen(true)
@@ -128,7 +128,7 @@ function UI:CreateMainHUD()
     closeBtn:SetScript("OnClick", function() f:Hide() end)
 
     ---------------------------------------------------------------------------
-    -- Top Section: Keystone Information, Matchmaking Status & Stopwatch
+    -- Top Section: Keystone Information, Status & Elapsed Stopwatch
     ---------------------------------------------------------------------------
     local keyIcon = f:CreateTexture(nil, "ARTWORK")
     keyIcon:SetSize(36, 36)
@@ -152,22 +152,38 @@ function UI:CreateMainHUD()
     timerText:SetText("00:00")
     f.timerText = timerText
 
+    -- Modern circular indicator texture (avoids font-dependent glyph issues)
     local statusText = f:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
     statusText:SetPoint("TOPRIGHT", timerText, "BOTTOMRIGHT", 0, -3)
-    statusText:SetText("|cff888888● IDLE|r")
+    statusText:SetText("|cff888888IDLE|r")
     f.statusText = statusText
+
+    local statusIcon = f:CreateTexture(nil, "OVERLAY")
+    statusIcon:SetSize(12, 12)
+    statusIcon:SetPoint("RIGHT", statusText, "LEFT", -4, 0)
+    statusIcon:SetTexture("Interface\\Common\\Indicator-Gray")
+    f.statusIcon = statusIcon
+
+    -- Warning Banner (Party Leader required or Keystone Mismatch)
+    local warningText = f:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+    warningText:SetPoint("TOPLEFT", f, "TOPLEFT", 14, -73)
+    warningText:SetPoint("TOPRIGHT", f, "TOPRIGHT", -14, -73)
+    warningText:SetJustifyH("LEFT")
+    warningText:SetText("")
+    warningText:Hide()
+    f.warningText = warningText
 
     -- Section divider 1
     local div1 = f:CreateTexture(nil, "ARTWORK")
-    div1:SetPoint("TOPLEFT", f, "TOPLEFT", 14, -76)
-    div1:SetPoint("TOPRIGHT", f, "TOPRIGHT", -14, -76)
+    div1:SetPoint("TOPLEFT", f, "TOPLEFT", 14, -86)
+    div1:SetPoint("TOPRIGHT", f, "TOPRIGHT", -14, -86)
     div1:SetHeight(1)
     div1:SetColorTexture(0.18, 0.18, 0.22, 0.6)
 
     ---------------------------------------------------------------------------
-    -- Middle Section A: Visual Party Roster (5 Slots) & Utilities (BL / CR)
+    -- Middle Section A: Unboxed 5-Role Party Roster & Clean Utilities (BL / CR)
     ---------------------------------------------------------------------------
-    -- 5 Party Role Slots: [Tank] [Healer] [DPS 1] [DPS 2] [DPS 3]
+    -- 5 Unboxed Role Icons: [Tank] [Healer] [DPS 1] [DPS 2] [DPS 3]
     f.roleSlots = {}
     local roleCoords = {
         TANK = { 0, 0.28125, 0.328125, 0.625 },
@@ -178,19 +194,11 @@ function UI:CreateMainHUD()
 
     for i = 1, 5 do
         local slot = CreateFrame("Frame", nil, f)
-        slot:SetSize(24, 24)
-        slot:SetPoint("TOPLEFT", f, "TOPLEFT", 14 + (i - 1) * 28, -83)
-
-        local slotBg = slot:CreateTexture(nil, "BACKGROUND")
-        slotBg:SetAllPoints(slot)
-        slotBg:SetColorTexture(0.04, 0.04, 0.06, 0.9)
-
-        local slotBorder = CreateBorder(slot, 0.25, 0.25, 0.28, 0.7)
-        slot.border = slotBorder
+        slot:SetSize(22, 22)
+        slot:SetPoint("TOPLEFT", f, "TOPLEFT", 14 + (i - 1) * 25, -92)
 
         local slotIcon = slot:CreateTexture(nil, "ARTWORK")
-        slotIcon:SetPoint("TOPLEFT", slot, "TOPLEFT", 2, -2)
-        slotIcon:SetPoint("BOTTOMRIGHT", slot, "BOTTOMRIGHT", -2, 2)
+        slotIcon:SetAllPoints(slot)
         slotIcon:SetTexture("Interface\\LFGFrame\\UI-LFG-ICON-PORTRAITROLES")
         local rName = defaultRoles[i]
         local c = roleCoords[rName]
@@ -214,98 +222,128 @@ function UI:CreateMainHUD()
         f.roleSlots[i] = slot
     end
 
-    -- Divider between party slots and utility badges
-    local slotDiv = f:CreateTexture(nil, "ARTWORK")
-    slotDiv:SetPoint("TOPLEFT", f, "TOPLEFT", 158, -82)
-    slotDiv:SetSize(1, 26)
-    slotDiv:SetColorTexture(0.20, 0.20, 0.24, 0.7)
+    -- Clean Text Utilities: Bloodlust (BL) and Combat Res (CR)
+    local blFrame = CreateFrame("Frame", nil, f)
+    blFrame:SetSize(28, 20)
+    blFrame:SetPoint("LEFT", f, "TOPLEFT", 148, -103)
 
-    -- Bloodlust Utility Badge
-    local blBadge = CreateFrame("Frame", nil, f)
-    blBadge:SetSize(24, 24)
-    blBadge:SetPoint("TOPLEFT", f, "TOPLEFT", 172, -83)
-    local blBg = blBadge:CreateTexture(nil, "BACKGROUND")
-    blBg:SetAllPoints(blBadge)
-    blBg:SetColorTexture(0.04, 0.04, 0.06, 0.9)
-    blBadge.border = CreateBorder(blBadge, 0.9, 0.2, 0.2, 0.8)
+    local blText = blFrame:CreateFontString(nil, "OVERLAY", "GameFontHighlight")
+    blText:SetAllPoints(blFrame)
+    blText:SetText("|cffff4444BL|r")
+    blFrame.text = blText
+    blFrame.tooltip = "Bloodlust / Heroism: Needed"
 
-    local blIcon = blBadge:CreateTexture(nil, "ARTWORK")
-    blIcon:SetPoint("TOPLEFT", blBadge, "TOPLEFT", 2, -2)
-    blIcon:SetPoint("BOTTOMRIGHT", blBadge, "BOTTOMRIGHT", -2, 2)
-    blIcon:SetTexture("Interface\\Icons\\spell_nature_bloodlust")
-    blIcon:SetTexCoord(0.08, 0.92, 0.08, 0.92)
-    blIcon:SetDesaturated(true)
-    blIcon:SetAlpha(0.4)
-    blBadge.icon = blIcon
-
-    local blTag = blBadge:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
-    blTag:SetPoint("LEFT", blBadge, "RIGHT", 5, 0)
-    blTag:SetText("|cffff4444BL|r")
-    blBadge.tag = blTag
-
-    blBadge:EnableMouse(true)
-    blBadge:SetScript("OnEnter", function(self)
+    blFrame:EnableMouse(true)
+    blFrame:SetScript("OnEnter", function(self)
         if self.tooltip then
             GameTooltip:SetOwner(self, "ANCHOR_TOP")
             GameTooltip:SetText(self.tooltip)
             GameTooltip:Show()
         end
     end)
-    blBadge:SetScript("OnLeave", function()
+    blFrame:SetScript("OnLeave", function()
         GameTooltip:Hide()
     end)
-    f.blBadge = blBadge
+    f.blFrame = blFrame
 
-    -- Combat Res Utility Badge
-    local crBadge = CreateFrame("Frame", nil, f)
-    crBadge:SetSize(24, 24)
-    crBadge:SetPoint("TOPLEFT", f, "TOPLEFT", 244, -83)
-    local crBg = crBadge:CreateTexture(nil, "BACKGROUND")
-    crBg:SetAllPoints(crBadge)
-    crBg:SetColorTexture(0.04, 0.04, 0.06, 0.9)
-    crBadge.border = CreateBorder(crBadge, 0.9, 0.2, 0.2, 0.8)
+    local crFrame = CreateFrame("Frame", nil, f)
+    crFrame:SetSize(28, 20)
+    crFrame:SetPoint("LEFT", blFrame, "RIGHT", 10, 0)
 
-    local crIcon = crBadge:CreateTexture(nil, "ARTWORK")
-    crIcon:SetPoint("TOPLEFT", crBadge, "TOPLEFT", 2, -2)
-    crIcon:SetPoint("BOTTOMRIGHT", crBadge, "BOTTOMRIGHT", -2, 2)
-    crIcon:SetTexture("Interface\\Icons\\spell_nature_reincarnation")
-    crIcon:SetTexCoord(0.08, 0.92, 0.08, 0.92)
-    crIcon:SetDesaturated(true)
-    crIcon:SetAlpha(0.4)
-    crBadge.icon = crIcon
+    local crText = crFrame:CreateFontString(nil, "OVERLAY", "GameFontHighlight")
+    crText:SetAllPoints(crFrame)
+    crText:SetText("|cffff4444CR|r")
+    crFrame.text = crText
+    crFrame.tooltip = "Combat Resurrection: Needed"
 
-    local crTag = crBadge:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
-    crTag:SetPoint("LEFT", crBadge, "RIGHT", 5, 0)
-    crTag:SetText("|cffff4444CR|r")
-    crBadge.tag = crTag
-
-    crBadge:EnableMouse(true)
-    crBadge:SetScript("OnEnter", function(self)
+    crFrame:EnableMouse(true)
+    crFrame:SetScript("OnEnter", function(self)
         if self.tooltip then
             GameTooltip:SetOwner(self, "ANCHOR_TOP")
             GameTooltip:SetText(self.tooltip)
             GameTooltip:Show()
         end
     end)
-    crBadge:SetScript("OnLeave", function()
+    crFrame:SetScript("OnLeave", function()
         GameTooltip:Hide()
     end)
-    f.crBadge = crBadge
+    f.crFrame = crFrame
+
+    ---------------------------------------------------------------------------
+    -- Middle Section B: Rules Mode Switcher & Settings Shortcut
+    ---------------------------------------------------------------------------
+    local rulesLabel = f:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+    rulesLabel:SetPoint("LEFT", f, "TOPLEFT", 14, -127)
+    rulesLabel:SetText("Rules:")
+
+    local modeBtn = CreateFrame("Button", nil, f, "UIPanelButtonTemplate")
+    modeBtn:SetSize(72, 20)
+    modeBtn:SetPoint("LEFT", rulesLabel, "RIGHT", 8, 0)
+    modeBtn:SetText("Default")
+    f.modeBtn = modeBtn
+
+    modeBtn:SetScript("OnClick", function(self)
+        local cur = (MPlusAutoLFGDB and MPlusAutoLFGDB.rulesMode) or "DEFAULT"
+        local newMode = (cur == "CUSTOM") and "DEFAULT" or "CUSTOM"
+        if MPlusAutoLFGDB then
+            MPlusAutoLFGDB.rulesMode = newMode
+        end
+        UI:UpdateModeButton()
+        if ns.Core then
+            ns.Core:EvaluateQueue()
+            ns.Core:UpdateUI()
+        end
+    end)
+
+    modeBtn:SetScript("OnEnter", function(self)
+        GameTooltip:SetOwner(self, "ANCHOR_TOP")
+        local cur = (MPlusAutoLFGDB and MPlusAutoLFGDB.rulesMode) or "DEFAULT"
+        if cur == "CUSTOM" then
+            GameTooltip:SetText("Custom Rules Mode", 1, 0.82, 0)
+            GameTooltip:AddLine("Active: Using custom key tolerance and ilvl deficit from AddOn Settings.", 1, 1, 1, true)
+            GameTooltip:AddLine("Click to toggle Default Rules.", 0.7, 0.7, 0.7)
+        else
+            GameTooltip:SetText("Default Rules Mode", 1, 0.82, 0)
+            GameTooltip:AddLine("Active: Tiered rules (+2-+6 open, +7-+11 [key-2], +12+ [key-1]).", 1, 1, 1, true)
+            GameTooltip:AddLine("Click to toggle Custom Rules.", 0.7, 0.7, 0.7)
+        end
+        GameTooltip:Show()
+    end)
+    modeBtn:SetScript("OnLeave", function() GameTooltip:Hide() end)
+
+    local configBtn = CreateFrame("Button", nil, f, "UIPanelButtonTemplate")
+    configBtn:SetSize(68, 20)
+    configBtn:SetPoint("TOPRIGHT", f, "TOPRIGHT", -14, -117)
+    configBtn:SetText("Options")
+    f.configBtn = configBtn
+
+    configBtn:SetScript("OnClick", function()
+        if ns.OpenOptions then
+            ns.OpenOptions()
+        end
+    end)
+    configBtn:SetScript("OnEnter", function(self)
+        GameTooltip:SetOwner(self, "ANCHOR_TOP")
+        GameTooltip:SetText("MPlusAutoLFG Settings", 1, 0.82, 0)
+        GameTooltip:AddLine("Click to open configuration panel in Game Menu -> Options.", 1, 1, 1, true)
+        GameTooltip:Show()
+    end)
+    configBtn:SetScript("OnLeave", function() GameTooltip:Hide() end)
 
     -- Section divider 2
     local div2 = f:CreateTexture(nil, "ARTWORK")
-    div2:SetPoint("TOPLEFT", f, "TOPLEFT", 14, -114)
-    div2:SetPoint("TOPRIGHT", f, "TOPRIGHT", -14, -114)
+    div2:SetPoint("TOPLEFT", f, "TOPLEFT", 14, -143)
+    div2:SetPoint("TOPRIGHT", f, "TOPRIGHT", -14, -143)
     div2:SetHeight(1)
     div2:SetColorTexture(0.18, 0.18, 0.22, 0.6)
 
     ---------------------------------------------------------------------------
-    -- Middle Section B: Next FIFO Applicant Showcase Card
+    -- Middle Section C: Next Qualified Applicant Showcase Card
     ---------------------------------------------------------------------------
     local candBox = CreateFrame("Frame", nil, f)
-    candBox:SetPoint("TOPLEFT", f, "TOPLEFT", 14, -122)
-    candBox:SetPoint("TOPRIGHT", f, "TOPRIGHT", -14, -122)
-    candBox:SetHeight(106)
+    candBox:SetPoint("TOPLEFT", f, "TOPLEFT", 14, -150)
+    candBox:SetPoint("TOPRIGHT", f, "TOPRIGHT", -14, -150)
+    candBox:SetHeight(94)
     f.candBox = candBox
 
     local candBg = candBox:CreateTexture(nil, "BACKGROUND")
@@ -316,7 +354,7 @@ function UI:CreateMainHUD()
 
     local boxHeader = candBox:CreateFontString(nil, "OVERLAY", "GameFontDisableSmall")
     boxHeader:SetPoint("TOPLEFT", candBox, "TOPLEFT", 10, -7)
-    boxHeader:SetText("NEXT QUALIFIED FIFO APPLICANT")
+    boxHeader:SetText("NEXT QUALIFIED APPLICANT")
     f.boxHeader = boxHeader
 
     local candSpecIcon = candBox:CreateTexture(nil, "OVERLAY")
@@ -327,7 +365,7 @@ function UI:CreateMainHUD()
     f.candSpecIcon = candSpecIcon
 
     local candName = candBox:CreateFontString(nil, "OVERLAY", "GameFontNormalLarge")
-    candName:SetPoint("TOPLEFT", boxHeader, "BOTTOMLEFT", 0, -4)
+    candName:SetPoint("TOPLEFT", boxHeader, "BOTTOMLEFT", 0, -5)
     candName:SetText("|cff888888Queue searching...|r")
     f.candName = candName
 
@@ -337,7 +375,7 @@ function UI:CreateMainHUD()
     f.candSpec = candSpec
 
     local candMetrics = candBox:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
-    candMetrics:SetPoint("TOPLEFT", candName, "BOTTOMLEFT", 0, -5)
+    candMetrics:SetPoint("TOPLEFT", candName, "BOTTOMLEFT", 0, -4)
     candMetrics:SetText("No qualifying applicants currently in queue.")
     f.candMetrics = candMetrics
 
@@ -359,6 +397,13 @@ function UI:CreateMainHUD()
     inviteBtn:RegisterForClicks("LeftButtonUp")
 
     inviteBtn:SetScript("OnClick", function(self)
+        if ns.Core and not ns.Core:IsLeader() then
+            return
+        end
+        if ns.Core and ns.Core.isKeystoneMismatch then
+            return
+        end
+
         if currentCandidate and currentCandidate.applicantID then
             UI:OnInviteClicked(currentCandidate)
         elseif not ns.LFGService:HasActiveListing() and (ns.CurrentState == ns.States.IDLE) then
@@ -375,8 +420,364 @@ function UI:CreateMainHUD()
 end
 
 -------------------------------------------------------------------------------
--- UI State & Presentation Updaters
+-- Action Button Click Dispatcher
 -------------------------------------------------------------------------------
+function UI:OnInviteClicked(candidate)
+    if not candidate or not candidate.applicantID then return end
+
+    if ns.Core and not ns.Core:IsLeader() then
+        return
+    end
+    if ns.Core and ns.Core.isKeystoneMismatch then
+        return
+    end
+
+    local ok = ns.LFGService:InviteApplicant(candidate.applicantID)
+    if ok then
+        if ns.OnCandidateInvited then
+            ns.OnCandidateInvited(candidate)
+        end
+        UI:UpdateCandidateCard(candidate, true)
+    end
+end
+
+-------------------------------------------------------------------------------
+-- Rules Mode Button Updater
+-------------------------------------------------------------------------------
+function UI:UpdateModeButton()
+    if not mainFrame or not mainFrame.modeBtn then return end
+    local mode = (MPlusAutoLFGDB and MPlusAutoLFGDB.rulesMode) or "DEFAULT"
+    if mode == "CUSTOM" then
+        mainFrame.modeBtn:SetText("Custom")
+    else
+        mainFrame.modeBtn:SetText("Default")
+    end
+end
+
+-------------------------------------------------------------------------------
+-- Header & Status Updater
+-------------------------------------------------------------------------------
+function UI:UpdateHeader(challengeMapID, keystoneLevel, dungeonName, iconTexture, currentState, elapsed, requiredItemLevel)
+    if not mainFrame then self:CreateMainHUD() end
+    local f = mainFrame
+    if not f then return end
+
+    -- Update keystone icon
+    if iconTexture and iconTexture ~= 0 then
+        f.keyIcon:SetTexture(iconTexture)
+    else
+        f.keyIcon:SetTexture(525134)
+    end
+
+    -- Update dungeon title and keystone level
+    if dungeonName and dungeonName ~= "" and dungeonName ~= "Unknown Dungeon" then
+        if keystoneLevel and keystoneLevel > 0 then
+            f.dungeonText:SetText(format("%s +%d", dungeonName, keystoneLevel))
+        else
+            f.dungeonText:SetText(dungeonName)
+        end
+    else
+        f.dungeonText:SetText("No Keystone Found")
+    end
+
+    -- Update required item level
+    if requiredItemLevel and requiredItemLevel > 0 then
+        f.ilvlText:SetText(format("Required ilvl: |cffffffff%d|r", requiredItemLevel))
+    else
+        f.ilvlText:SetText("Required ilvl: --")
+    end
+
+    -- Update elapsed timer
+    if elapsed and elapsed > 0 then
+        local mins = floor(elapsed / 60)
+        local secs = floor(elapsed % 60)
+        f.timerText:SetText(format("%02d:%02d", mins, secs))
+    else
+        f.timerText:SetText("00:00")
+    end
+
+    -- Status icon & label
+    local state = currentState or ns.CurrentState or (ns.States and ns.States.IDLE) or "IDLE"
+    if ns.States and state == ns.States.LISTED then
+        f.statusIcon:SetTexture("Interface\\Common\\Indicator-Green")
+        f.statusText:SetText("|cff00ff00Scanning Queue|r")
+    elseif ns.States and state == ns.States.ASSEMBLING then
+        f.statusIcon:SetTexture("Interface\\Common\\Indicator-Yellow")
+        f.statusText:SetText("|cffffff00Assembling|r")
+    elseif ns.States and state == ns.States.FULL then
+        f.statusIcon:SetTexture("Interface\\Common\\Indicator-Green")
+        f.statusText:SetText("|cff00ff00Group Full|r")
+    else
+        f.statusIcon:SetTexture("Interface\\Common\\Indicator-Gray")
+        f.statusText:SetText("|cff888888IDLE|r")
+    end
+
+    -- Leader & Keystone Mismatch Guards
+    local isLeader = true
+    if ns.Core and ns.Core.IsLeader then
+        isLeader = ns.Core:IsLeader()
+    end
+
+    local isMismatch = false
+    local mismatchReason = nil
+    if ns.Core then
+        isMismatch = ns.Core.isKeystoneMismatch
+        mismatchReason = ns.Core.mismatchReason
+    end
+
+    if not isLeader then
+        f.warningText:SetText("|cffffaa00Only party leader can manage matchmaking|r")
+        f.warningText:Show()
+    elseif isMismatch then
+        f.warningText:SetText(format("|cffff4444%s|r", mismatchReason or "Listing Mismatch: Listed key != Bag key"))
+        f.warningText:Show()
+    else
+        f.warningText:SetText("")
+        f.warningText:Hide()
+    end
+
+    -- If no candidate is actively displayed, sync the button
+    if not currentCandidate then
+        if not isLeader then
+            f.inviteBtn:Disable()
+            f.inviteBtn:SetText("Leader Only")
+        elseif isMismatch then
+            f.inviteBtn:Disable()
+            f.inviteBtn:SetText("Listing Mismatch")
+        elseif not ns.LFGService:HasActiveListing() and (ns.States and state == ns.States.IDLE) then
+            f.inviteBtn:Enable()
+            f.inviteBtn:SetText("Open LFG Window")
+        else
+            f.inviteBtn:Disable()
+            f.inviteBtn:SetText("Invite")
+        end
+    end
+end
+
+-------------------------------------------------------------------------------
+-- Party Roster & Utilities (BL / CR) Updater
+-------------------------------------------------------------------------------
+function UI:UpdateUtilityStatus(rosterContext)
+    if not mainFrame then self:CreateMainHUD() end
+    local f = mainFrame
+    if not f or not rosterContext then return end
+
+    -- Group members by role
+    local tanks = {}
+    local healers = {}
+    local dps = {}
+
+    if rosterContext.members then
+        for _, m in ipairs(rosterContext.members) do
+            if m.role == "TANK" then
+                table.insert(tanks, m)
+            elseif m.role == "HEALER" then
+                table.insert(healers, m)
+            else
+                table.insert(dps, m)
+            end
+        end
+    end
+
+    local totalTanks = (rosterContext.roles and rosterContext.roles["TANK"]) or #tanks
+    local totalHealers = (rosterContext.roles and rosterContext.roles["HEALER"]) or #healers
+    local totalDPS = (rosterContext.roles and rosterContext.roles["DAMAGER"]) or #dps
+
+    -- Slot 1: Tank
+    local tankSlot = f.roleSlots[1]
+    if tankSlot then
+        if tanks[1] then
+            tankSlot.icon:SetDesaturated(false)
+            tankSlot.icon:SetAlpha(1.0)
+            tankSlot.tooltipText = format("Tank: %s (%s)", tanks[1].name, tanks[1].class or "")
+        elseif totalTanks > 0 then
+            tankSlot.icon:SetDesaturated(false)
+            tankSlot.icon:SetAlpha(0.7)
+            tankSlot.tooltipText = "Tank: Reserved (Invited)"
+        else
+            tankSlot.icon:SetDesaturated(true)
+            tankSlot.icon:SetAlpha(0.35)
+            tankSlot.tooltipText = "Tank: Needed"
+        end
+    end
+
+    -- Slot 2: Healer
+    local healerSlot = f.roleSlots[2]
+    if healerSlot then
+        if healers[1] then
+            healerSlot.icon:SetDesaturated(false)
+            healerSlot.icon:SetAlpha(1.0)
+            healerSlot.tooltipText = format("Healer: %s (%s)", healers[1].name, healers[1].class or "")
+        elseif totalHealers > 0 then
+            healerSlot.icon:SetDesaturated(false)
+            healerSlot.icon:SetAlpha(0.7)
+            healerSlot.tooltipText = "Healer: Reserved (Invited)"
+        else
+            healerSlot.icon:SetDesaturated(true)
+            healerSlot.icon:SetAlpha(0.35)
+            healerSlot.tooltipText = "Healer: Needed"
+        end
+    end
+
+    -- Slots 3, 4, 5: DPS 1, 2, 3
+    for idx = 1, 3 do
+        local dpsSlot = f.roleSlots[2 + idx]
+        if dpsSlot then
+            if dps[idx] then
+                dpsSlot.icon:SetDesaturated(false)
+                dpsSlot.icon:SetAlpha(1.0)
+                dpsSlot.tooltipText = format("DPS: %s (%s)", dps[idx].name, dps[idx].class or "")
+            elseif idx <= totalDPS then
+                dpsSlot.icon:SetDesaturated(false)
+                dpsSlot.icon:SetAlpha(0.7)
+                dpsSlot.tooltipText = "DPS: Reserved (Invited)"
+            else
+                dpsSlot.icon:SetDesaturated(true)
+                dpsSlot.icon:SetAlpha(0.35)
+                dpsSlot.tooltipText = "DPS: Needed"
+            end
+        end
+    end
+
+    -- Utility text: Bloodlust (BL)
+    if rosterContext.hasBL then
+        f.blFrame.text:SetText("|cff00ff00BL|r")
+        f.blFrame.tooltip = "Bloodlust / Heroism: In Party"
+    else
+        f.blFrame.text:SetText("|cffff4444BL|r")
+        f.blFrame.tooltip = "Bloodlust / Heroism: Needed"
+    end
+
+    -- Utility text: Combat Resurrection (CR)
+    if rosterContext.hasCR then
+        f.crFrame.text:SetText("|cff00ff00CR|r")
+        f.crFrame.tooltip = "Combat Resurrection: In Party"
+    else
+        f.crFrame.text:SetText("|cffff4444CR|r")
+        f.crFrame.tooltip = "Combat Resurrection: Needed"
+    end
+end
+
+-------------------------------------------------------------------------------
+-- Candidate Showcase Card Updater
+-------------------------------------------------------------------------------
+function UI:UpdateCandidateCard(candidate, isInvited)
+    if not mainFrame then self:CreateMainHUD() end
+    local f = mainFrame
+    if not f then return end
+
+    currentCandidate = candidate
+    if not candidate then
+        self:ClearCandidateCard()
+        return
+    end
+
+    local isLeader = (not ns.Core or not ns.Core.IsLeader) or ns.Core:IsLeader()
+    local isMismatch = ns.Core and ns.Core.isKeystoneMismatch
+
+    -- Display candidate information
+    local classColor = RAID_CLASS_COLORS[candidate.classFilename]
+    local colorHex = classColor and classColor.colorStr or "ffffffff"
+    local nameText = format("|c%s%s|r", colorHex, candidate.name or "Applicant")
+    f.candName:SetText(nameText)
+
+    local specText = ""
+    if candidate.specName and candidate.specName ~= "" then
+        specText = format("%s %s", candidate.specName, candidate.localizedClass or candidate.classFilename or "")
+    else
+        specText = format("%s", candidate.localizedClass or candidate.classFilename or candidate.role or "")
+    end
+    f.candSpec:SetText(specText)
+
+    -- Spec Icon
+    if candidate.specIcon and candidate.specIcon > 0 then
+        f.candSpecIcon:SetTexture(candidate.specIcon)
+        f.candSpecIcon:Show()
+        f.candName:SetPoint("TOPLEFT", f.candSpecIcon, "TOPRIGHT", 8, 2)
+    else
+        f.candSpecIcon:Hide()
+        f.candName:SetPoint("TOPLEFT", f.boxHeader, "BOTTOMLEFT", 0, -5)
+    end
+
+    -- M+ Score rarity coloring
+    local score = candidate.dungeonScore or candidate.overallScore or 0
+    local scoreColor = "ffffffff"
+    if C_ChallengeMode and C_ChallengeMode.GetDungeonScoreRarityColor then
+        local colorObj = C_ChallengeMode.GetDungeonScoreRarityColor(score)
+        if colorObj and colorObj.GenerateHexColor then
+            scoreColor = colorObj:GenerateHexColor()
+        elseif colorObj and colorObj.r then
+            scoreColor = format("ff%02x%02x%02x", colorObj.r * 255, colorObj.g * 255, colorObj.b * 255)
+        end
+    else
+        if score >= 2500 then scoreColor = "ffff8000"
+        elseif score >= 2000 then scoreColor = "ffa335ee"
+        elseif score >= 1500 then scoreColor = "ff0070dd"
+        elseif score >= 1000 then scoreColor = "ff1eff00"
+        end
+    end
+
+    local ilvl = candidate.itemLevel and floor(candidate.itemLevel) or 0
+    f.candMetrics:SetText(format("Rating: |c%s%d|r   •   ilvl: |cffffffff%d|r", scoreColor, score, ilvl))
+
+    -- Dungeon Experience
+    local bestLevel = candidate.bestRunLevel or 0
+    if bestLevel > 0 then
+        local timedStr = candidate.bestRunFinishedSuccess and "|cff00ff00Timed|r" or "|cffff4444Overtime|r"
+        f.candExp:SetText(format("Best Run: +%d %s", bestLevel, timedStr))
+    else
+        f.candExp:SetText("Best Run: |cff888888No record for this key|r")
+    end
+
+    -- Primary action button state
+    if not isLeader then
+        f.inviteBtn:Disable()
+        f.inviteBtn:SetText("Leader Only")
+    elseif isMismatch then
+        f.inviteBtn:Disable()
+        f.inviteBtn:SetText("Listing Mismatch")
+    elseif isInvited then
+        f.inviteBtn:Disable()
+        f.inviteBtn:SetText("INVITED")
+    else
+        f.inviteBtn:Enable()
+        f.inviteBtn:SetText("Invite")
+    end
+end
+
+-------------------------------------------------------------------------------
+-- Reset Candidate Showcase Card
+-------------------------------------------------------------------------------
+function UI:ClearCandidateCard()
+    currentCandidate = nil
+    if not mainFrame then return end
+    local f = mainFrame
+
+    f.candSpecIcon:Hide()
+    f.candName:SetPoint("TOPLEFT", f.boxHeader, "BOTTOMLEFT", 0, -5)
+    f.candName:SetText("|cff888888Queue searching...|r")
+    f.candSpec:SetText("")
+    f.candMetrics:SetText("No qualifying applicants currently in queue.")
+    f.candExp:SetText("")
+
+    local isLeader = (not ns.Core or not ns.Core.IsLeader) or ns.Core:IsLeader()
+    local isMismatch = ns.Core and ns.Core.isKeystoneMismatch
+
+    if not isLeader then
+        f.inviteBtn:Disable()
+        f.inviteBtn:SetText("Leader Only")
+    elseif isMismatch then
+        f.inviteBtn:Disable()
+        f.inviteBtn:SetText("Listing Mismatch")
+    elseif not ns.LFGService:HasActiveListing() and (ns.CurrentState == ns.States.IDLE) then
+        f.inviteBtn:Enable()
+        f.inviteBtn:SetText("Open LFG Window")
+    else
+        f.inviteBtn:Disable()
+        f.inviteBtn:SetText("Invite")
+    end
+end
+
 -------------------------------------------------------------------------------
 -- Native Minimap Button (Standard Blizzard Round Border)
 -------------------------------------------------------------------------------
@@ -474,8 +875,6 @@ end
 -------------------------------------------------------------------------------
 -- Blizzard LFG / PVE Window Top Button
 -------------------------------------------------------------------------------
----Create a red Blizzard-style action button anchored on top of PVEFrame
----@return Button|nil
 function UI:CreateLFGTopButton()
     if lfgTopButton then
         return lfgTopButton
@@ -535,6 +934,13 @@ end
 -------------------------------------------------------------------------------
 function UI:Show()
     if not mainFrame then self:CreateMainHUD() end
+    if ns.Core and ns.Core.RefreshKeystoneInfo then
+        ns.Core:RefreshKeystoneInfo()
+    end
+    if ns.Core and ns.Core.UpdateUI then
+        ns.Core:UpdateUI()
+    end
+    self:UpdateModeButton()
     mainFrame:Show()
 end
 
@@ -547,7 +953,7 @@ function UI:Toggle()
     if mainFrame:IsShown() then
         mainFrame:Hide()
     else
-        mainFrame:Show()
+        self:Show()
     end
 end
 
@@ -555,4 +961,5 @@ function UI:Initialize()
     self:CreateMainHUD()
     self:CreateMinimapButton()
     self:CreateLFGTopButton()
+    self:UpdateModeButton()
 end

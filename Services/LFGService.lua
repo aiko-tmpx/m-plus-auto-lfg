@@ -398,10 +398,57 @@ function LFGService:GetActiveListingInfo()
     return nil
 end
 
+---Get parsed details about the active listing
+---@return boolean hasListing, number challengeMapID, number keystoneLevel, string dungeonName, number|string iconTexture, number requiredIlvl, number activityID
+function LFGService:GetActiveListingDetails()
+    if not self:HasActiveListing() then
+        return false, 0, 0, "", 525134, 0, 0
+    end
+
+    local entryInfo = self:GetActiveListingInfo()
+    if not entryInfo then
+        return false, 0, 0, "", 525134, 0, 0
+    end
+
+    local activityID = entryInfo.activityID or 0
+    local requiredIlvl = entryInfo.requiredItemLevel or 0
+    local dungeonName = "Unknown Dungeon"
+    local challengeMapID = 0
+    local iconTexture = 525134
+    local keyLevel = 0
+
+    if entryInfo.name then
+        local matchedLevel = entryInfo.name:match("%+(%d+)")
+        if matchedLevel then
+            keyLevel = tonumber(matchedLevel) or 0
+        end
+    end
+
+    if activityID > 0 and C_LFGList.GetActivityInfoTable then
+        local actInfo = C_LFGList.GetActivityInfoTable(activityID)
+        if actInfo then
+            dungeonName = actInfo.shortName or actInfo.fullName or dungeonName
+            challengeMapID = actInfo.mapID or actInfo.groupFinderActivityGroupID or 0
+        end
+    end
+
+    if challengeMapID > 0 and C_ChallengeMode and C_ChallengeMode.GetMapUIInfo then
+        local name, _, _, texture = C_ChallengeMode.GetMapUIInfo(challengeMapID)
+        if name and name ~= "" then
+            dungeonName = name
+        end
+        if texture then
+            iconTexture = texture
+        end
+    end
+
+    return true, challengeMapID, keyLevel, dungeonName, iconTexture, requiredIlvl, activityID
+end
+
 -------------------------------------------------------------------------------
--- Applicants Data Access & FIFO Retrieval
+-- Applicants Data Access & Queue Retrieval
 -------------------------------------------------------------------------------
----Retrieve list of all applicant IDs in strict FIFO order (ascending applicantID)
+---Retrieve list of all applicant IDs in order (ascending applicantID)
 ---@return table applicantsArray
 function LFGService:GetApplicants()
     if not C_LFGList or not C_LFGList.GetApplicants then
@@ -410,7 +457,7 @@ function LFGService:GetApplicants()
 
     local applicants = C_LFGList.GetApplicants() or {}
     
-    -- Ensure deterministic FIFO ordering by ascending applicant ID
+    -- Ensure deterministic ordering by ascending applicant ID
     sort(applicants, function(a, b)
         return a < b
     end)

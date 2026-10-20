@@ -4,44 +4,55 @@
 [![Lua 5.1](https://img.shields.io/badge/Language-Lua%205.1-blue.svg)](https://www.lua.org)
 [![Zero Dependencies](https://img.shields.io/badge/Dependencies-Zero%20(100%25%20Native)-green.svg)]()
 
-**MPlusAutoLFG** is an automated, fair matchmaking assistant engineered for a **"Solo Queue"** style of play in Mythic+. Instead of arbitrary manual cherry-picking and gatekeeping, the addon simulates an automatic dungeon finder queue: it invites the first eligible applicant (**FIFO**) based on strict, deterministic mechanical rules.
+**MPlusAutoLFG** is an automated, fair matchmaking assistant engineered for a **"Solo Queue"** style of play in Mythic+. Instead of arbitrary manual gatekeeping, the addon simulates an automatic dungeon finder queue: it selects the first eligible applicant in queue based on strict, deterministic mechanical rules.
 
 ---
 
 ## Key Highlights & Architectural Principles
 
-- **Zero External Dependencies**: 100% native World of Warcraft Lua & XML APIs (`BackdropTemplate`, `NineSlice`, native event handlers, native minimap button). No Ace3, LibDataBroker, or LibDBIcon overhead.
-- **Blizzard Protected API Compliance**: Calling `C_LFGList.InviteApplicant(applicantID)` requires an explicit hardware event. The addon implements a dedicated on-screen `SecureActionButtonTemplate` button labeled **"CLICK TO INVITE"** (strictly mouse-click driven, no spacebar or keybind exploits).
+- **Zero External Dependencies**: 100% native World of Warcraft Lua & XML APIs (clean modern slate canvas, native Blizzard indicator textures, native options menu). No Ace3, LibDataBroker, or LibDBIcon overhead.
+- **Blizzard Protected API Compliance**: Calling `C_LFGList.InviteApplicant(applicantID)` requires an explicit hardware event. The addon implements a dedicated on-screen `SecureActionButtonTemplate` button labeled **"Invite"** (strictly mouse-click driven, no spacebar or keybind exploits).
+- **Modern Blizzlike Dragonflight / TWW UI**: 
+  - Unboxed 5-role party layout (`[Tank] [Healer] [DPS] [DPS] [DPS]`), full brightness when present, desaturated when missing.
+  - Minimalist utilities: clean colored text for Bloodlust (`BL`) and Combat Res (`CR`).
+  - Native Blizzard round indicator textures (`Interface\Common\Indicator-Green`, `Indicator-Yellow`, `Indicator-Gray`) replacing font-dependent Unicode characters.
+  - Active listing auto-sync: automatically detects active Premade Groups listings, attaches to them, and starts the timer.
+  - Party leader & listing mismatch safety guards: automatically disables controls and alerts the player if they are not the party leader or if the listed keystone differs from their bag keystone.
+- **Rules Modes & AddOn Options Menu**:
+  - Integrated into Blizzard's native Settings panel (`Game Menu -> Options -> AddOns -> MPlusAutoLFG` or `/malfg config`).
+  - **Default Mode**: Tiered progression rules (+2-+6 open to all, +7-+11 [key - 2], +12+ [key - 1]).
+  - **Custom Mode**: User-configurable sliders for key drop tolerance [Key - X] (0–5, default 2), ilvl deficit (0–30), timed runs requirement, and leader ilvl match.
 - **Declarative Validation Pipeline (Chain of Responsibility)**: Isolated, pure validator rules in `Validation.lua` (`CheckRoleSlot`, `CheckItemLevel`, `CheckExperience`, `CheckDuplicates`, `CheckUtilities`).
 - **Data Access Layer & Adapter Pattern**: `LFGService.lua` abstracts Blizzard's `C_LFGList`, `C_MythicPlus`, and `C_ChallengeMode` APIs, enabling clean runtime mocking and dependency injection.
-- **Leaver / Decline Resilience**: Real-time tracking of `LFG_LIST_APPLICANT_UPDATED` and `GROUP_ROSTER_UPDATE`. If an invited or joined candidate declines or leaves before the dungeon starts, their reserved slot and utility flags (BL/CR) unlock immediately, resuming automated FIFO evaluation.
-- **Offline Simulation & Dev Harness**: Built-in `MockEngine.lua` with 7 realistic test fixtures to test all edge cases without live applicants.
+- **Leaver / Decline Resilience**: Real-time tracking of `LFG_LIST_APPLICANT_UPDATED` and `GROUP_ROSTER_UPDATE`. If an invited or joined candidate declines or leaves before the dungeon starts, their reserved slot and utility flags (BL/CR) unlock immediately, resuming automated queue evaluation.
 
 ---
 
 ## Matchmaking Rules & Candidate Validation
 
-Applicants are evaluated strictly in **FIFO order** (by ascending queue entry time / `applicantID`):
+Applicants are evaluated strictly in queue order (by ascending queue entry time / `applicantID`):
 
 ### 1. Group Roles & Target Composition
 - Target team: **1 Tank, 1 Healer, 3 DPS**.
 - Applicants whose role is already filled or currently reserved by an invited candidate are skipped.
 
-### 2. Dynamic Item Level Gatekeeper
-Calculated dynamically from the party leader's equipped average item level (`GetAverageItemLevel()`):
-- **Key Level $\ge$ 18**: Leader ilvl $- 5$
-- **Key Level 15 to 17**: Leader ilvl $- 10$
-- **Key Level 12 to 14**: Leader ilvl $- 15$
-- **Key Level $<$ 12**: Leader ilvl $- 35$
-
-Passed directly to native listing creation (`requiredItemLevel`) and verified in Lua as a double-check.
+### 2. Item Level Evaluation
+- In **Default Mode**: Calculated dynamically from the party leader's equipped average item level:
+  - **Key Level $\ge$ 18**: Leader ilvl $- 5$
+  - **Key Level 15 to 17**: Leader ilvl $- 10$
+  - **Key Level 12 to 14**: Leader ilvl $- 15$
+  - **Key Level $<$ 12**: Leader ilvl $- 35$
+- In **Custom Mode**: Enforces allowed deficit slider (0 to 30 ilvl below leader) and optional leader ilvl requirement.
 
 ### 3. Dungeon Experience Threshold
 Evaluates applicant's best run on the exact dungeon of the active keystone:
-- **Target Key Level $\le$ 10**: No experience required (open to all applicants).
-- **Target Key Level 11 to 15**: Must have completed the exact same dungeon at $\ge (\text{Target Key} - 2)$ **within timer**.
-- **Target Key Level $>$ 15**: Must have completed the exact same dungeon at $\ge (\text{Target Key} - 1)$ **within timer**.
-- **Keys $\ge$ Target Key Level**: Strictly valid (retries, score upgrades, farm).
+- In **Default Mode**:
+  - **Target Key Level 2 to 6**: Open to all applicants (+2 minimum key required).
+  - **Target Key Level 7 to 11**: Must have completed the exact same dungeon at $\ge (\text{Target Key} - 2)$ within timer.
+  - **Target Key Level $\ge$ 12**: Must have completed the exact same dungeon at $\ge (\text{Target Key} - 1)$ within timer.
+- In **Custom Mode**:
+  - Configurable key drop tolerance slider $[ \text{Key} - X ]$ (clamped to minimum +2).
+  - Configurable checkbox: Require Timed Run (ignore overtime completions).
 
 ### 4. Class & Spec Duplicate Restrictions
 - **Target Key Level $<$ 15**: Duplicate classes are permitted provided their specializations differ. Duplicate specializations are rejected.
@@ -60,7 +71,7 @@ Evaluates applicant's best run on the exact dungeon of the active keystone:
 ```mermaid
 stateDiagram-v2
     [*] --> IDLE
-    IDLE --> LISTED: Start Matchmaking (/malfg start)
+    IDLE --> LISTED: Start Matchmaking (/malfg start or Open LFG)
     LISTED --> ASSEMBLING: Candidate Invited / Member Joins
     ASSEMBLING --> ASSEMBLING: Candidate Leaves / Declines (Slot Recovered)
     ASSEMBLING --> FULL: 5/5 Members Filled (Auto-delist)
@@ -82,10 +93,11 @@ MPlusAutoLFG/
 ├── MPlusAutoLFG.toc         # TOC file with Midnight/Retail interface version & SavedVariables
 ├── Constants.lua            # Utility tables, class IDs, spec IDs, and role definitions
 ├── Services/
-│   └── LFGService.lua       # Data Access Layer / Blizzard API adapter
-├── Validation.lua           # Declarative Validation Pipeline (Chain of Responsibility)
-├── UI.lua                   # Authentic Blizzard UI (BasicFrameTemplateWithInset & UIPanelButtonTemplate)
-├── Core.lua                 # FSM orchestrator, event bus, roster tracking & slash commands
+│   └── LFGService.lua       # Data Access Layer / Blizzard API adapter & active listing reader
+├── Validation.lua           # Declarative Validation Pipeline (Default tiered & Custom modes)
+├── Settings.lua             # Native Blizzard Settings Panel (Sliders, Checkboxes, Options)
+├── UI.lua                   # Modern Dragonflight/TWW UI HUD, unboxed party slots, minimap & LFG button
+├── Core.lua                 # FSM orchestrator, active listing sync, leader guards & slash commands
 └── README.md                # Project documentation
 ```
 
@@ -96,6 +108,8 @@ MPlusAutoLFG/
 | Command | Description |
 | :--- | :--- |
 | `/malfg` | Toggle main floating HUD window |
+| `/malfg config` | Open AddOn Settings panel in Blizzard Game Options |
+| `/malfg mode` | Toggle Rules Mode (`Default` vs `Custom`) |
 | `/malfg start` | Read active keystone, calculate dynamic ilvl, and create automated LFG listing |
 | `/malfg debug` | Toggle verbose applicant evaluation chat logs |
 | `/malfg reset` | Reset queue state, pending invites, and restore frame positions |
@@ -108,8 +122,5 @@ MPlusAutoLFG/
    `World of Warcraft\_retail_\Interface\AddOns\MPlusAutoLFG\`
 2. Launch or reload World of Warcraft (`/reload`).
 3. Type `/malfg` in chat or click the Minimap button to toggle the HUD.
-4. **Testing with Real Premade Groups**:
-   - Turn on verbose debugging: `/malfg debug`
-   - Click **"Start Queue"** (or list your keystone in the native Premade Groups UI).
-   - As players apply, `MPlusAutoLFG` prints every candidate evaluation to chat (`[FIFO]`, `[REJECT]`), showing why applicants pass or fail rules in real time.
-   - Click the prominent Blizzard-native **"CLICK TO INVITE"** button to invite the top qualified applicant.
+4. If your group is already listed in Premade Groups, `MPlusAutoLFG` automatically detects it and displays the active keystone, dungeon name, and queue status.
+5. Click the prominent Blizzard-native **"Invite"** button to invite the top qualified applicant.

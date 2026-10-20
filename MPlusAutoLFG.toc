@@ -1,7 +1,7 @@
 ## Interface: 120100, 120105, 120000, 110200, 110205
 ## Interface-Retail: 120100
 ## Title: |cff00b4ffMPlusAutoLFG|r
-## Notes: Automated, fair matchmaking assistant for Mythic+ "Solo Queue" style play. Deterministic FIFO candidate evaluation.
+## Notes: Automated, fair matchmaking assistant for Mythic+ "Solo Queue" style play. Deterministic candidate evaluation.
 ## Author: Aiko
 ## Version: 1.0.0
 ## SavedVariables: MPlusAutoLFGDB
@@ -12,5 +12,6 @@
 Constants.lua
 Services\LFGService.lua
 Validation.lua
+Settings.lua
 UI.lua
 Core.lua
