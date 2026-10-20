@@ -93,11 +93,27 @@ This document tracks identified bugs, edge cases, and feature refinements to be 
 
 ---
 
+### [ ] Task 7: Add 'List AutoLFG Group' Red Blizzard-Style Button to LFG Window
+* **Reported Behavior / Feature Request:**
+  Add a button near the Blizzard LFG window (positioned on top), styled as a simple red Blizzard-like button labeled `"List AutoLFG Group"`.
+* **Technical Details:**
+  * Target parent: `LFGListFrame` / `PVEFrame` (anchored to top/top-right of the window).
+  * Visual style: Blizzard `UIPanelButtonTemplate` with red accent styling / text.
+  * Functionality: Provides quick one-click access directly from the native Blizzard Group Finder frame to start the MPlusAutoLFG workflow.
+* **Action Items:**
+  1. Create and anchor the button to `LFGListFrame` (or `PVEFrame`).
+  2. Apply Blizzard-authentic red styling and text `"List AutoLFG Group"`.
+  3. Hook button `OnClick` to invoke `Core:StartMatchmaking()`.
+  4. Ensure button visibility toggles appropriately with `LFGListFrame` / `PVEFrame`.
+
+---
+
 ## Execution Order
 We will address these one by one:
-1. **Task 1:** Fix Premade Groups Category Selection (Dungeons Tab Navigation).
+1. **Task 1:** Fix Premade Groups Category Selection (Dungeons Tab Navigation) - *Completed*.
 2. **Task 2:** Remove Pause Queue Button & Simplify HUD Controls.
 3. **Task 3:** Real-Time Roster & Utility Requirement Updates on Leaver.
 4. **Task 4:** Invite State Handling & Candidate Card Lock (Show "INVITED").
 5. **Task 5:** Replace Role Text with Spec Icons.
 6. **Task 6:** Replace Window Header Title with Addon Name.
+7. **Task 7:** Add 'List AutoLFG Group' Red Blizzard-Style Button to LFG Window.
