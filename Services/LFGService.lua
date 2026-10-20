@@ -222,6 +222,11 @@ function LFGService:OpenGroupFinder()
         pcall(ToggleLFDParentFrame)
     end
 
+    -- Ensure LFG top button is created on PVEFrame
+    if ns.UI and ns.UI.CreateLFGTopButton then
+        ns.UI:CreateLFGTopButton()
+    end
+
     -- 3. If GroupFinderFrame has group buttons, click Premade Groups button
     if GroupFinderFrame and GroupFinderFrame.groupButtons then
         for _, btn in ipairs(GroupFinderFrame.groupButtons) do

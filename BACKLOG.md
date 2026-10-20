@@ -85,18 +85,17 @@ This document tracks identified bugs, edge cases, and feature refinements to be 
 
 ---
 
-### [ ] Task 7: Add 'List AutoLFG Group' Red Blizzard-Style Button to LFG Window
+### [x] Task 7: Add 'List AutoLFG Group' Red Blizzard-Style Button to LFG Window
+* **Status:** Completed
 * **Reported Behavior / Feature Request:**
   Add a button near the Blizzard LFG window (positioned on top), styled as a simple red Blizzard-like button labeled `"List AutoLFG Group"`.
-* **Technical Details:**
-  * Target parent: `LFGListFrame` / `PVEFrame` (anchored to top/top-right of the window).
-  * Visual style: Blizzard `UIPanelButtonTemplate` with red accent styling / text.
-  * Functionality: Provides quick one-click access directly from the native Blizzard Group Finder frame to start the MPlusAutoLFG workflow.
-* **Action Items:**
-  1. Create and anchor the button to `LFGListFrame` (or `PVEFrame`).
-  2. Apply Blizzard-authentic red styling and text `"List AutoLFG Group"`.
-  3. Hook button `OnClick` to invoke `Core:StartMatchmaking()`.
-  4. Ensure button visibility toggles appropriately with `LFGListFrame` / `PVEFrame`.
+* **Changes Made:**
+  1. Created `UI:CreateLFGTopButton()` in [`UI.lua`](UI.lua), parented directly to `PVEFrame` (the top-level Group Finder window).
+  2. Anchored cleanly to the top-right border of the window (`BOTTOMRIGHT, PVEFrame, TOPRIGHT, -12, 1`) with dimensions `150x22`, using Blizzard's authentic `UIPanelButtonTemplate` (the classic red Blizzard panel button).
+  3. Attached mouseover tooltip providing clear status inspection and guidance (`"Click to configure listing and start Mythic+ matchmaking. Pre-fills Playstyle (Relaxed) and required ilvl based on your keystone."`).
+  4. Wired `OnClick` handler to invoke `Core:StartMatchmaking()` and display the AutoLFG HUD (`UI:Show()`), or toggle HUD visibility if already active.
+  5. Handled Load-on-Demand (LoD) lifecycle in [`Core.lua`](Core.lua) and [`Services/LFGService.lua`](Services/LFGService.lua) via `ADDON_LOADED` (`Blizzard_GroupFinder`, `Blizzard_LFGList`, `Blizzard_PVEFrame`), `PLAYER_LOGIN`, and `OpenGroupFinder()`.
+  6. Updated minimap button right-click handler to cleanly toggle start/stop queue matching the simplified FSM.
 
 ---
 
@@ -108,4 +107,4 @@ We will address these one by one:
 4. **Task 4:** Invite State Handling & Candidate Card Lock (Show "INVITED") - *Completed*.
 5. **Task 5:** Replace Role Text with Spec Icons - *Completed*.
 6. **Task 6:** Replace Window Header Title with Addon Name - *Completed*.
-7. **Task 7:** Add 'List AutoLFG Group' Red Blizzard-Style Button to LFG Window.
+7. **Task 7:** Add 'List AutoLFG Group' Red Blizzard-Style Button to LFG Window - *Completed*.

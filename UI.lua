@@ -21,6 +21,7 @@ ns.UI = UI
 
 local mainFrame = nil
 local minimapButton = nil
+local lfgTopButton = nil
 local currentCandidate = nil
 
 -------------------------------------------------------------------------------
@@ -427,8 +428,12 @@ function UI:CreateMinimapButton()
         if button == "LeftButton" then
             UI:Toggle()
         elseif button == "RightButton" then
-            if ns.TogglePause then
-                ns.TogglePause()
+            if ns.Core then
+                if ns.LFGService:HasActiveListing() or ns.CurrentState == ns.States.LISTED or ns.CurrentState == ns.States.ASSEMBLING then
+                    ns.Core:StopMatchmaking()
+                else
+                    ns.Core:StartMatchmaking()
+                end
             end
         end
     end)
@@ -440,7 +445,7 @@ function UI:CreateMinimapButton()
         GameTooltip:AddLine(format("Current State: |cffffffff%s|r", state), 0.8, 0.8, 0.8)
         GameTooltip:AddLine(" ")
         GameTooltip:AddLine("|cff00ff00Left-Click:|r Toggle Matchmaker Panel", 0.7, 0.7, 0.7)
-        GameTooltip:AddLine("|cff00ff00Right-Click:|r Pause / Resume queue", 0.7, 0.7, 0.7)
+        GameTooltip:AddLine("|cff00ff00Right-Click:|r Start / Stop queue", 0.7, 0.7, 0.7)
         GameTooltip:Show()
     end)
 
@@ -449,6 +454,65 @@ function UI:CreateMinimapButton()
     end)
 
     UpdatePosition()
+    return btn
+end
+
+-------------------------------------------------------------------------------
+-- Blizzard LFG / PVE Window Top Button
+-------------------------------------------------------------------------------
+---Create a red Blizzard-style action button anchored on top of PVEFrame
+---@return Button|nil
+function UI:CreateLFGTopButton()
+    if lfgTopButton then
+        return lfgTopButton
+    end
+
+    local parent = _G["PVEFrame"]
+    if not parent then
+        return nil
+    end
+
+    -- Create native Blizzard panel button using UIPanelButtonTemplate (classic red Blizzard button)
+    local btn = CreateFrame("Button", "MPlusAutoLFGLFGListButton", parent, "UIPanelButtonTemplate")
+    lfgTopButton = btn
+    btn:SetSize(150, 22)
+    btn:SetPoint("BOTTOMRIGHT", parent, "TOPRIGHT", -12, 1)
+    btn:SetText("List AutoLFG Group")
+    btn:SetFrameLevel(parent:GetFrameLevel() + 5)
+
+    -- Tooltip & status inspection
+    btn:SetScript("OnEnter", function(self)
+        GameTooltip:SetOwner(self, "ANCHOR_TOP")
+        GameTooltip:AddLine("MPlusAutoLFG", 1, 0.82, 0)
+        local state = ns.CurrentState or (ns.States and ns.States.IDLE) or "IDLE"
+        if state == "IDLE" or (ns.States and state == ns.States.IDLE) then
+            GameTooltip:AddLine("Click to configure listing and start Mythic+ matchmaking.", 1, 1, 1, true)
+            GameTooltip:AddLine("Pre-fills Playstyle (Relaxed) and required ilvl based on your keystone.", 0.7, 0.7, 0.7, true)
+        else
+            GameTooltip:AddLine(format("Current State: |cffffffff%s|r", state), 0.8, 0.8, 0.8)
+            GameTooltip:AddLine("Queue is currently active. Click to view Matchmaking HUD.", 0.2, 1, 0.2, true)
+        end
+        GameTooltip:Show()
+    end)
+
+    btn:SetScript("OnLeave", function()
+        GameTooltip:Hide()
+    end)
+
+    btn:SetScript("OnClick", function()
+        if ns.Core then
+            if ns.CurrentState == ns.States.LISTED or ns.CurrentState == ns.States.ASSEMBLING or ns.CurrentState == ns.States.FULL then
+                UI:Show()
+            else
+                ns.Core:StartMatchmaking()
+                UI:Show()
+            end
+        elseif ns.LFGService then
+            ns.LFGService:OpenGroupFinder()
+            UI:Show()
+        end
+    end)
+
     return btn
 end
 
@@ -476,4 +540,5 @@ end
 function UI:Initialize()
     self:CreateMainHUD()
     self:CreateMinimapButton()
+    self:CreateLFGTopButton()
 end

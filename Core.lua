@@ -578,9 +578,12 @@ eventFrame:SetScript("OnEvent", function(self, event, ...)
                     MPlusAutoLFGDB[k] = v
                 end
             end
-        elseif loadedName == "Blizzard_LFGList" or loadedName == "Blizzard_GroupFinder" then
+        elseif loadedName == "Blizzard_LFGList" or loadedName == "Blizzard_GroupFinder" or loadedName == "Blizzard_PVEFrame" then
             if ns.LFGService and ns.LFGService.HookEntryCreation then
                 ns.LFGService:HookEntryCreation()
+            end
+            if ns.UI and ns.UI.CreateLFGTopButton then
+                ns.UI:CreateLFGTopButton()
             end
         end
     elseif event == "PLAYER_LOGIN" then
