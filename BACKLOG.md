@@ -119,23 +119,20 @@ This document tracks identified bugs, edge cases, and feature refinements to be 
 
 ---
 
-### [ ] Task 9: HUD Window UI/UX Full Redesign (Discussion & Specification Required)
-* **Status:** Under Discussion (Do Not Implement Yet)
-* **Goal:** Completely redesign the HUD interface to replace the outdated, clunky dialog frame with a modern, sleek, ergonomic Mythic+ matchmaking HUD.
-* **Topics to Discuss & Decide:**
-  1. **Window Format & Form Factor:**
-     * Should it remain a standalone movable window, or dock into the Blizzard objective tracker / party frame / LFG window?
-     * Compact floating widget (e.g. a small queue status bar/pill that expands into an applicant card when an applicant is ready) vs. full-sized dashboard window.
-  2. **Visual Aesthetics & Frame Styling:**
-     * Modern Retail WoW (Dragonflight / The War Within 11.0+) NineSlice style vs. Classic dialog template.
-     * Clean dark translucent backdrop with subtle gold/silver borders instead of heavy inset stone boxes.
-  3. **Information Hierarchy:**
-     * **Top**: Keystone Dungeon, Level badge, Queue Status & timer.
-     * **Middle**: Party slots visualization (5 role/spec dots or icons: Tank, Healer, 3 DPS) + Utility requirements badges (Bloodlust [Ready/Needed], Combat Res [Ready/Needed]).
-     * **Applicant Card**: Highlighted candidate card showing spec icon, name (class-colored), Mythic+ score (score-colored), equipped item level, and best dungeon run.
-     * **Bottom**: Prominent action button (`"Open LFG Window"` when idle, `"Invite"` when candidate available, `"INVITED"` pending).
-  4. **Animations & Polish:**
-     * Smooth fading, subtle border glow when a candidate arrives, audio notification on applicant ready.
+### [x] Task 9: HUD Window UI/UX Full Redesign
+* **Status:** Completed
+* **Goal:** Completely redesign the HUD interface to replace the outdated, clunky 2004-era stone dialog frame and tacky text dumps with a modern, sleek, ergonomic Dragonflight / The War Within (TWW) Mythic+ matchmaking HUD.
+* **Changes Made:**
+  1. Replaced `BasicFrameTemplateWithInset` and `InsetFrameTemplate` with a modern dark slate canvas (`Color(0.08, 0.08, 0.10, 0.95)`), flat header bar (`Color(0.05, 0.05, 0.07, 0.95)`), and razor-sharp 1px slate borders (`Color(0.22, 0.22, 0.26)`).
+  2. Eliminated tacky `Utilities (4 open): BL [Need] • CR [Need]` text strings completely.
+  3. Built an interactive **5-Slot Visual Party Roster** (`[Tank] [Healer] [DPS 1] [DPS 2] [DPS 3]`) using native Blizzard role icons:
+     * When slot is filled: Displays full brightness with class-colored border and member tooltip.
+     * When slot is open: Displays desaturated silhouette with open role tooltip.
+  4. Built visual **Bloodlust & Combat Res Badges** (`spell_nature_bloodlust` and `spell_nature_reincarnation`):
+     * When utility is present: Full brightness, glowing green border (`READY`).
+     * When utility is missing: Desaturated icon, glowing red border (`NEED`).
+  5. Redesigned candidate showcase card into a modern dark card panel with score tier colorization (`C_ChallengeMode.GetDungeonScoreRarityColor`), 28x28 spec icon, class-colored candidate name, and clean stat typography.
+  6. Sized window compactly to 350x288 with centered 322x30 unified action button.
 
 ---
 
@@ -148,5 +145,5 @@ We will address these one by one:
 5. **Task 5:** Replace Role Text with Spec Icons - *Completed*.
 6. **Task 6:** Replace Window Header Title with Addon Name - *Completed*.
 7. **Task 7:** Add 'List AutoLFG Group' Red Blizzard-Style Button to LFG Window - *Completed*.
-8. **Task 8:** Streamline HUD Actions - Unified Primary Button & Remove Delist.
-9. **Task 9:** HUD Window UI/UX Full Redesign (Discussion & Specification Required).
+8. **Task 8:** Streamline HUD Actions - Unified Primary Button & Remove Delist - *Completed*.
+9. **Task 9:** HUD Window UI/UX Full Redesign - *Completed*.
