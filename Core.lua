@@ -404,12 +404,6 @@ function Core:OnGroupRosterUpdated()
             end
 
             Logger:Info("LIFECYCLE", format("Group fully assembled in %02d:%02d! Composition: %s", mins, secs, table.concat(names, ", ")))
-
-            -- Automatically delist from Premade Groups
-            if MPlusAutoLFGDB and MPlusAutoLFGDB.autoDelistOnFull then
-                Logger:Info("LIFECYCLE", "Auto-delisting group from Premade Groups.")
-                ns.LFGService:RemoveListing()
-            end
         end
     elseif memberCount < ns.MAX_PARTY_SIZE and ns.CurrentState == ns.States.FULL then
         -- A member left a full group before dungeon started: Resume assembly!
@@ -459,30 +453,20 @@ function Core:StartMatchmaking()
         self:UpdateUI()
         Logger:Info("QUEUE", format("Connected to Premade Groups listing for %s +%d. Monitoring real applicants (Debug: %s)...", activeKeystone.dungeonName, activeKeystone.keystoneLevel, ns.IsDebugMode() and "|cff00ff00ON|r" or "OFF"))
     else
-        Logger:Info("LISTING", format("Listing group for %s +%d (Min ilvl: %d)...", activeKeystone.dungeonName, activeKeystone.keystoneLevel, requiredIlvl))
-        local success = ns.LFGService:CreateListing(activeKeystone.activityID, requiredIlvl, title, desc)
-        if success then
-            self:StartStopwatch()
-            local rosterContext = self:GetRosterContext()
-            local nextState = (rosterContext.totalCount > 1) and ns.States.ASSEMBLING or ns.States.LISTED
-            self:SetState(nextState, "Listing created")
-            self:EvaluateQueue()
-            self:UpdateUI()
-        else
-            Logger:Info("LISTING", "Opened Premade Groups. Click 'List Group' to submit your keystone listing.")
-        end
+        ns.LFGService:OpenGroupFinder()
+        Logger:Info("LISTING", format("Opened Premade Groups for %s +%d (Recommended min ilvl: %d). Click 'List Group' to activate matchmaking.", activeKeystone.dungeonName, activeKeystone.keystoneLevel, requiredIlvl))
     end
 end
 
 ---Stop active matchmaking listing and reset queue state
 function Core:StopMatchmaking()
-    ns.LFGService:RemoveListing()
     self:StopStopwatch()
     wipe(pendingInvites)
-    self:SetState(ns.States.IDLE, "Listing removed by user")
+    self:SetState(ns.States.IDLE, "Matchmaking stopped by user")
     ns.UI:ClearCandidateCard()
     self:UpdateUI()
-    Logger:Info("LISTING", "Group delisted from Premade Groups.")
+    ns.LFGService:OpenGroupFinder()
+    Logger:Info("LISTING", "Matchmaking stopped. Opened Premade Groups to delist if desired.")
 end
 
 ---Handle Blizzard LFG_LIST_ACTIVE_ENTRY_UPDATE

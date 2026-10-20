@@ -118,40 +118,24 @@ end
 -------------------------------------------------------------------------------
 -- LFG Listing Management
 -------------------------------------------------------------------------------
----Create a new Premade Group listing for the Mythic Keystone
----@param activityID number
----@param requiredIlvl number
----@param title string
----@param description string
----@return boolean success
-function LFGService:CreateListing(activityID, requiredIlvl, title, description)
-    -- 1. If group is already listed in Premade Groups:
-    if C_LFGList and C_LFGList.HasActiveEntryInfo and C_LFGList.HasActiveEntryInfo() then
+---Open Blizzard's native Premade Groups frame cleanly without taint
+function LFGService:OpenGroupFinder()
+    if PVEFrame_ShowFrame then
+        pcall(PVEFrame_ShowFrame, "GroupFinderFrame", "LFGListPVEStub")
+    elseif ToggleLFDParentFrame then
+        pcall(ToggleLFDParentFrame)
+    end
+end
+
+---Check if group currently has an active listing, or open Group Finder frame
+---@return boolean isAlreadyActive
+function LFGService:CreateListing()
+    if self:HasActiveListing() then
         return true
     end
 
-    -- 2. Attempt native creation call with activityID and requiredIlvl
-    local ok = false
-    if C_LFGList and C_LFGList.CreateListing and activityID and activityID > 0 then
-        local status, res = pcall(C_LFGList.CreateListing, activityID, requiredIlvl or 0, 0, false, false)
-        if status and res then
-            ok = true
-        else
-            local status2, res2 = pcall(C_LFGList.CreateListing, { activityID }, requiredIlvl or 0, 0, false, false)
-            if status2 and res2 then
-                ok = true
-            end
-        end
-    end
-
-    -- 3. If direct call was blocked or didn't succeed, open Blizzard's native Group Finder frame
-    if not ok then
-        if PVEFrame_ShowFrame then
-            pcall(PVEFrame_ShowFrame, "GroupFinderFrame", "LFGListPVEStub")
-        end
-    end
-
-    return ok
+    self:OpenGroupFinder()
+    return false
 end
 
 ---Update existing active listing
@@ -159,19 +143,14 @@ end
 ---@param requiredIlvl number
 ---@return boolean
 function LFGService:UpdateListing(activityID, requiredIlvl)
-    if C_LFGList and C_LFGList.HasActiveEntryInfo and C_LFGList.HasActiveEntryInfo() then
-        return true
-    end
-    return false
+    return self:HasActiveListing()
 end
 
----Remove current active LFG listing
+---Handle request to remove listing (opens Group Finder to allow manual delisting)
 ---@return boolean
 function LFGService:RemoveListing()
-    if C_LFGList and C_LFGList.RemoveListing then
-        return pcall(C_LFGList.RemoveListing)
-    end
-    return false
+    self:OpenGroupFinder()
+    return true
 end
 
 ---Check if group currently has an active LFG listing
