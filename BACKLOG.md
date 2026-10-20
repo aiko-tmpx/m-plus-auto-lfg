@@ -113,6 +113,26 @@ This document tracks identified bugs, edge cases, and feature refinements to be 
 
 ---
 
+### [ ] Task 9: HUD Window UI/UX Full Redesign (Discussion & Specification Required)
+* **Status:** Under Discussion (Do Not Implement Yet)
+* **Goal:** Completely redesign the HUD interface to replace the outdated, clunky dialog frame with a modern, sleek, ergonomic Mythic+ matchmaking HUD.
+* **Topics to Discuss & Decide:**
+  1. **Window Format & Form Factor:**
+     * Should it remain a standalone movable window, or dock into the Blizzard objective tracker / party frame / LFG window?
+     * Compact floating widget (e.g. a small queue status bar/pill that expands into an applicant card when an applicant is ready) vs. full-sized dashboard window.
+  2. **Visual Aesthetics & Frame Styling:**
+     * Modern Retail WoW (Dragonflight / The War Within 11.0+) NineSlice style vs. Classic dialog template.
+     * Clean dark translucent backdrop with subtle gold/silver borders instead of heavy inset stone boxes.
+  3. **Information Hierarchy:**
+     * **Top**: Keystone Dungeon, Level badge, Queue Status & timer.
+     * **Middle**: Party slots visualization (5 role/spec dots or icons: Tank, Healer, 3 DPS) + Utility requirements badges (Bloodlust [Ready/Needed], Combat Res [Ready/Needed]).
+     * **Applicant Card**: Highlighted candidate card showing spec icon, name (class-colored), Mythic+ score (score-colored), equipped item level, and best dungeon run.
+     * **Bottom**: Prominent action button (`"Open LFG Window"` when idle, `"Invite"` when candidate available, `"INVITED"` pending).
+  4. **Animations & Polish:**
+     * Smooth fading, subtle border glow when a candidate arrives, audio notification on applicant ready.
+
+---
+
 ## Execution Order
 We will address these one by one:
 1. **Task 1:** Fix Premade Groups Category Selection (Dungeons Tab Navigation) - *Completed*.
@@ -123,3 +143,4 @@ We will address these one by one:
 6. **Task 6:** Replace Window Header Title with Addon Name - *Completed*.
 7. **Task 7:** Add 'List AutoLFG Group' Red Blizzard-Style Button to LFG Window - *Completed*.
 8. **Task 8:** Streamline HUD Actions - Unified Primary Button & Remove Delist.
+9. **Task 9:** HUD Window UI/UX Full Redesign (Discussion & Specification Required).
