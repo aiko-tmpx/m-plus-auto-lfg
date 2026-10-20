@@ -7,6 +7,12 @@
 
 local addonName, ns = ...
 
+-- Guard against multiple addon instances loading simultaneously (e.g. dual directory/junction loading)
+if _G["MPlusAutoLFG_CoreLoaded"] then
+    return
+end
+_G["MPlusAutoLFG_CoreLoaded"] = true
+
 -- Local caching of high-frequency Lua built-ins
 local pairs, ipairs, type, tonumber, tostring, select = pairs, ipairs, type, tonumber, tostring, select
 local floor, max, min = math.floor, math.max, math.min

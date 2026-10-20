@@ -27,7 +27,10 @@ local currentCandidate = nil
 -- Main Blizzard-Like Frame Creation
 -------------------------------------------------------------------------------
 function UI:CreateMainHUD()
-    if mainFrame then return mainFrame end
+    if mainFrame or _G["MPlusAutoLFGMainFrame"] then
+        mainFrame = mainFrame or _G["MPlusAutoLFGMainFrame"]
+        return mainFrame
+    end
 
     -- Use native Blizzard BasicFrameTemplateWithInset for authentic look & feel
     local f = CreateFrame("Frame", "MPlusAutoLFGMainFrame", UIParent, "BasicFrameTemplateWithInset")
@@ -340,7 +343,10 @@ end
 -- Native Minimap Button (Standard Blizzard Round Border)
 -------------------------------------------------------------------------------
 function UI:CreateMinimapButton()
-    if minimapButton then return minimapButton end
+    if minimapButton or _G["MPlusAutoLFGMinimapButton"] then
+        minimapButton = minimapButton or _G["MPlusAutoLFGMinimapButton"]
+        return minimapButton
+    end
 
     local btn = CreateFrame("Button", "MPlusAutoLFGMinimapButton", Minimap)
     minimapButton = btn
