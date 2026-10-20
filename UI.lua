@@ -60,7 +60,7 @@ function UI:CreateMainHUD()
 
     -- Window Title (native Blizzard TitleText from template)
     if f.TitleText then
-        f.TitleText:SetText("Mythic+ Auto Matchmaker")
+        f.TitleText:SetText(ns.ADDON_NAME or "MPlusAutoLFG")
         f.TitleText:SetTextColor(1, 0.82, 0)
     end
 
@@ -121,6 +121,14 @@ function UI:CreateMainHUD()
     local boxHeader = candBox:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
     boxHeader:SetPoint("TOPLEFT", candBox, "TOPLEFT", 10, -8)
     boxHeader:SetText("NEXT QUALIFIED FIFO APPLICANT")
+    f.boxHeader = boxHeader
+
+    local candSpecIcon = candBox:CreateTexture(nil, "OVERLAY")
+    candSpecIcon:SetSize(20, 20)
+    candSpecIcon:SetPoint("TOPLEFT", boxHeader, "BOTTOMLEFT", 0, -4)
+    candSpecIcon:SetTexCoord(0.08, 0.92, 0.08, 0.92)
+    candSpecIcon:Hide()
+    f.candSpecIcon = candSpecIcon
 
     local candName = candBox:CreateFontString(nil, "OVERLAY", "GameFontNormalLarge")
     candName:SetPoint("TOPLEFT", boxHeader, "BOTTOMLEFT", 0, -4)
@@ -287,13 +295,38 @@ function UI:UpdateCandidateCard(candidate, isInvited)
         return
     end
 
+    -- Spec Icon
+    local specIcon = nil
+    if candidate.specID and candidate.specID > 0 and GetSpecializationInfoByID then
+        local _, _, _, icon = GetSpecializationInfoByID(candidate.specID)
+        specIcon = icon
+    end
+
+    if specIcon and mainFrame.candSpecIcon then
+        mainFrame.candSpecIcon:SetTexture(specIcon)
+        mainFrame.candSpecIcon:Show()
+        mainFrame.candName:ClearAllPoints()
+        mainFrame.candName:SetPoint("LEFT", mainFrame.candSpecIcon, "RIGHT", 6, 0)
+    else
+        if mainFrame.candSpecIcon then
+            mainFrame.candSpecIcon:Hide()
+        end
+        mainFrame.candName:ClearAllPoints()
+        mainFrame.candName:SetPoint("TOPLEFT", mainFrame.boxHeader or mainFrame.candBox, "BOTTOMLEFT", 0, -4)
+    end
+
     local r, g, b = ns.GetClassColor(candidate.classFilename)
     mainFrame.candName:SetText(candidate.name)
     mainFrame.candName:SetTextColor(r, g, b, 1)
 
     local specInfo = ns.GetSpecInfo(candidate.specID)
-    local specName = specInfo and specInfo.name or candidate.role
-    mainFrame.candSpec:SetText(format("(%s %s - %s)", specName, candidate.localizedClass or candidate.classFilename, candidate.role))
+    local specName = specInfo and specInfo.name or ""
+    local classDisplay = candidate.localizedClass or candidate.classFilename
+    if specName and specName ~= "" then
+        mainFrame.candSpec:SetText(format("(%s %s)", specName, classDisplay))
+    else
+        mainFrame.candSpec:SetText(format("(%s)", classDisplay))
+    end
 
     mainFrame.candMetrics:SetText(format("Item Level: |cffffffff%d|r   |   M+ Rating: |cffffffff%d|r", candidate.itemLevel or 0, candidate.dungeonScore or 0))
 
@@ -315,6 +348,11 @@ function UI:ClearCandidateCard()
     if not mainFrame then return end
     currentCandidate = nil
 
+    if mainFrame.candSpecIcon then
+        mainFrame.candSpecIcon:Hide()
+    end
+    mainFrame.candName:ClearAllPoints()
+    mainFrame.candName:SetPoint("TOPLEFT", mainFrame.boxHeader or mainFrame.candBox, "BOTTOMLEFT", 0, -4)
     mainFrame.candName:SetText("|cff777777Queue searching...|r")
     mainFrame.candSpec:SetText("")
     mainFrame.candMetrics:SetText("No qualifying applicants currently in queue.")
