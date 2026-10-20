@@ -48,20 +48,19 @@ This document tracks identified bugs, edge cases, and feature refinements to be 
 
 ---
 
-### [ ] Task 4: Invite State Handling & Candidate Card Lock (Show "INVITED")
+### [x] Task 4: Invite State Handling & Candidate Card Lock (Show "INVITED")
+* **Status:** Completed
 * **Reported Behavior:**
   Currently, clicking "CLICK TO INVITE" immediately clears or jumps. The addon should instead wait until the invitation is resolved (accepted, declined, or timed out). While waiting:
   * The candidate showcase card must remain locked on the invited candidate.
-  * The button should show `INVITED` (or `INVITED - AWAITING RESPONSE`) and be disabled.
+  * The button should show `INVITED` and be disabled.
   * Only after the candidate joins the group (`GROUP_ROSTER_UPDATE`) or declines/times out (`LFG_LIST_APPLICANT_UPDATED`) should the next qualified FIFO applicant be shown.
-* **Action Items:**
-  1. Add an `isInvited` state to `UI:UpdateCandidateCard(candidate, isInvited)`.
-  2. When "CLICK TO INVITE" is pressed:
-     - Set button text to `"INVITED"` and disable it.
-     - Keep candidate name, spec icon, and details visible on the card.
-  3. Listen to `LFG_LIST_APPLICANT_UPDATED` and `GROUP_ROSTER_UPDATE`:
-     - If candidate joins (`inviteaccepted` / roster member match): clear card, trigger next queue evaluation.
-     - If candidate declines / times out (`declined` / `timedout`): log warning, release slot, evaluate next FIFO candidate.
+* **Changes Made:**
+  1. Updated `UI:UpdateCandidateCard(candidate, isInvited)`: when `isInvited` is true, changes the button label to `"INVITED"` and disables it while keeping all candidate details locked in place.
+  2. In `UI:OnInviteClicked`, immediately calls `UI:UpdateCandidateCard(candidate, true)` on successful invite dispatch.
+  3. Added guard in `Core:EvaluateQueue()`: while an invitation is pending (`next(pendingInvites)`), evaluation holds off on showing new candidates.
+  4. On `GROUP_ROSTER_UPDATE`: when the invited player joins the roster, `pendingInvites` clears, card resets, and queue evaluation resumes for the next slot.
+  5. On `LFG_LIST_APPLICANT_UPDATED`: if declined, timed out, or cancelled, clears card and immediately re-evaluates the queue to find the next FIFO candidate.
 
 ---
 

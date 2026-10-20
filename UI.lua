@@ -197,10 +197,10 @@ function UI:OnInviteClicked(candidate)
 
     local success = ns.LFGService:InviteApplicant(candidate.applicantID)
     if success then
+        UI:UpdateCandidateCard(candidate, true)
         if ns.OnCandidateInvited then
             ns.OnCandidateInvited(candidate)
         end
-        UI:ClearCandidateCard()
     else
         if ns.Logger then
             ns.Logger:Warn("INVITE", format("Could not invite applicant %d (protected hardware event required).", candidate.applicantID))
@@ -276,7 +276,8 @@ end
 
 ---Display top FIFO candidate in Showcase Card and activate Invite Button
 ---@param candidate table|nil
-function UI:UpdateCandidateCard(candidate)
+---@param isInvited boolean|nil
+function UI:UpdateCandidateCard(candidate, isInvited)
     if not mainFrame then self:CreateMainHUD() end
 
     currentCandidate = candidate
@@ -299,9 +300,14 @@ function UI:UpdateCandidateCard(candidate)
     local timedText = candidate.bestRunFinishedSuccess and "|cff00ff00Timed|r" or "|cffff4444Overtime|r"
     mainFrame.candExp:SetText(format("Best Run: |cffffffff+%d|r (%s)", candidate.bestRunLevel or 0, timedText))
 
-    -- Enable Blizzard default invite button
-    mainFrame.inviteBtn:SetText(format("CLICK TO INVITE: %s", candidate.name))
-    mainFrame.inviteBtn:Enable()
+    -- Update invite button according to invitation status
+    if isInvited then
+        mainFrame.inviteBtn:SetText("INVITED")
+        mainFrame.inviteBtn:Disable()
+    else
+        mainFrame.inviteBtn:SetText(format("CLICK TO INVITE: %s", candidate.name))
+        mainFrame.inviteBtn:Enable()
+    end
 end
 
 ---Clear candidate showcase card

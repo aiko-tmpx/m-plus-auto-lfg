@@ -265,6 +265,11 @@ function Core:EvaluateQueue()
         return
     end
 
+    -- Guard: If an invitation is currently pending, keep card locked on the invited candidate
+    if next(pendingInvites) then
+        return
+    end
+
     local rosterContext = self:GetRosterContext()
     local openSlots = ns.MAX_PARTY_SIZE - rosterContext.totalCount
 
@@ -344,9 +349,7 @@ function ns.OnCandidateInvited(candidate)
 
     Core:SetState(ns.States.ASSEMBLING, "Candidate invited")
     Core:UpdateUI()
-
-    -- Re-evaluate queue for next open slot
-    Core:EvaluateQueue()
+    -- Card remains locked on the invited candidate showing "INVITED" until resolved
 end
 
 ---Handle applicant status changes (declined, timed out, accepted)
@@ -365,6 +368,7 @@ function Core:OnApplicantUpdated(applicantID)
             pendingInvites[applicantID] = nil
             Logger:Warn("RESILIENCE", format("Invited candidate '%s' %s! Reserved %s slot & utility flags recovered.", pending.name, status, pending.role))
             
+            ns.UI:ClearCandidateCard()
             EventBus:Trigger("ROSTER_SLOT_FREED", pending.role, pending.classFilename)
             Core:UpdateUI()
             Core:EvaluateQueue()
@@ -385,6 +389,9 @@ function Core:OnGroupRosterUpdated()
             if m.name == p.name then
                 pendingInvites[appID] = nil
                 Logger:Debug("RESILIENCE", format("Pending candidate '%s' joined group roster.", m.name))
+                if ns.UI then
+                    ns.UI:ClearCandidateCard()
+                end
             end
         end
     end
