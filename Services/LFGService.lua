@@ -162,16 +162,132 @@ function LFGService:OpenGroupFinder()
         end
     end
 
-    -- 5. If EntryCreation is visible, prefill recommended item level
-    if LFGListFrame and LFGListFrame.EntryCreation and LFGListFrame.EntryCreation:IsShown() then
-        local kMapID, kLevel = self:GetOwnedKeystoneInfo()
-        if kLevel and kLevel > 0 then
-            local leaderIlvl = self:GetLeaderEquippedItemLevel()
-            local reqIlvl = self:CalculateRequiredItemLevel(leaderIlvl, kLevel)
-            if LFGListFrame.EntryCreation.ItemLevel and LFGListFrame.EntryCreation.ItemLevel.EditBox then
-                pcall(LFGListFrame.EntryCreation.ItemLevel.EditBox.SetText, LFGListFrame.EntryCreation.ItemLevel.EditBox, tostring(reqIlvl))
+    -- 5. Hook and set default listing parameters (Playstyle "Relaxed", ilvl, title)
+    self:HookEntryCreation()
+    self:SetDefaultListingPlaystyle()
+
+    -- Multiple frame ticks to ensure fields populate after Blizzard's layout updates
+    if C_Timer and C_Timer.After then
+        C_Timer.After(0.05, function()
+            self:SetDefaultListingPlaystyle()
+        end)
+        C_Timer.After(0.15, function()
+            self:SetDefaultListingPlaystyle()
+        end)
+    end
+end
+
+---Pre-populate and enforce "Relaxed" playstyle on Blizzard's Premade Group listing form
+function LFGService:SetDefaultListingPlaystyle()
+    local frame = LFGListFrame and LFGListFrame.EntryCreation
+    if not frame then return end
+
+    -- Playstyle enum ID for Casual / Relaxed:
+    -- In Enum.LFGEntryPlaystyle: 0 = None, 1 = Standard, 2 = Casual ("Relaxed"), 3 = Hardcore ("Competitive")
+    local playstyleID = (Enum and Enum.LFGEntryPlaystyle and (Enum.LFGEntryPlaystyle.Casual or Enum.LFGEntryPlaystyle.Relaxed))
+                     or (Enum and Enum.LFGEntryGeneralPlaystyle and (Enum.LFGEntryGeneralPlaystyle.Casual or Enum.LFGEntryGeneralPlaystyle.Relaxed))
+                     or 2
+
+    local playstyleText = "Relaxed"
+    local activityID = frame.selectedActivity
+    if not activityID or activityID == 0 then
+        local _, _, _, _, actID = self:GetOwnedKeystoneInfo()
+        activityID = actID
+    end
+
+    if activityID and activityID > 0 and C_LFGList and C_LFGList.GetActivityInfoTable then
+        local activityInfo = C_LFGList.GetActivityInfoTable(activityID)
+        if activityInfo and C_LFGList.GetPlaystyleString then
+            local ok, s = pcall(C_LFGList.GetPlaystyleString, playstyleID, activityInfo)
+            if ok and s and s ~= "" then
+                playstyleText = s
             end
         end
+    end
+
+    -- 1. Set internal state variable on EntryCreation frame (Blizzard's primary variable)
+    frame.selectedPlaystyle = playstyleID
+
+    -- 2. Target the dropdown widget and update its state / text
+    local dropdown = frame.PlayStyleDropdown or frame.PlaystyleDropdown or frame.playStyleDropdown
+    if dropdown then
+        dropdown.selectedPlaystyle = playstyleID
+
+        -- Modern 11.0+ DropdownButton API
+        if dropdown.SetSelection then
+            pcall(dropdown.SetSelection, dropdown, function(data) return data == playstyleID end)
+        end
+        if dropdown.SetSelectedValue then
+            pcall(dropdown.SetSelectedValue, dropdown, playstyleID)
+        end
+        if dropdown.SetValue then
+            pcall(dropdown.SetValue, dropdown, playstyleID)
+        end
+        if dropdown.SetSelected then
+            pcall(dropdown.SetSelected, dropdown, playstyleID)
+        end
+        if dropdown.SetText then
+            pcall(dropdown.SetText, dropdown, playstyleText)
+        end
+        if dropdown.SetDefaultText then
+            pcall(dropdown.SetDefaultText, dropdown, playstyleText)
+        end
+        if dropdown.Text and dropdown.Text.SetText then
+            pcall(dropdown.Text.SetText, dropdown.Text, playstyleText)
+        end
+
+        -- Legacy UIDropDownMenu API fallback
+        if UIDropDownMenu_SetSelectedValue then
+            pcall(UIDropDownMenu_SetSelectedValue, dropdown, playstyleID)
+        end
+        if UIDropDownMenu_SetText then
+            pcall(UIDropDownMenu_SetText, dropdown, playstyleText)
+        end
+    end
+
+    -- 3. Pre-fill title if empty and keystone exists
+    local _, kLevel, dungeonName = self:GetOwnedKeystoneInfo()
+    if kLevel and kLevel > 0 and frame.Name and frame.Name.GetText and frame.Name:GetText() == "" then
+        local defaultTitle = format(ns.DefaultConfig.listingTitleTemplate, kLevel)
+        if frame.Name.SetText then
+            pcall(frame.Name.SetText, frame.Name, defaultTitle)
+        end
+    end
+
+    -- 4. Pre-fill item level if empty and keystone exists
+    if kLevel and kLevel > 0 and frame.ItemLevel and frame.ItemLevel.EditBox then
+        local currentIlvl = tonumber(frame.ItemLevel.EditBox:GetText()) or 0
+        if currentIlvl <= 0 then
+            local leaderIlvl = self:GetLeaderEquippedItemLevel()
+            local reqIlvl = self:CalculateRequiredItemLevel(leaderIlvl, kLevel)
+            pcall(frame.ItemLevel.EditBox.SetText, frame.ItemLevel.EditBox, tostring(reqIlvl))
+        end
+    end
+
+    -- 5. Trigger Blizzard's entry validation so the List Group button refreshes
+    if LFGListEntryCreation_UpdateValidState then
+        pcall(LFGListEntryCreation_UpdateValidState, frame)
+    end
+end
+
+---Hook Blizzard's EntryCreation frame to auto-apply defaults on display
+function LFGService:HookEntryCreation()
+    local frame = LFGListFrame and LFGListFrame.EntryCreation
+    if frame and not frame.mplusAutoLFGHooked then
+        frame.mplusAutoLFGHooked = true
+
+        frame:HookScript("OnShow", function()
+            if C_Timer and C_Timer.After then
+                C_Timer.After(0.02, function()
+                    LFGService:SetDefaultListingPlaystyle()
+                end)
+                C_Timer.After(0.1, function()
+                    LFGService:SetDefaultListingPlaystyle()
+                end)
+            else
+                LFGService:SetDefaultListingPlaystyle()
+            end
+        end)
     end
 end
 

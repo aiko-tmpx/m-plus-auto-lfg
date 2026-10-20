@@ -569,11 +569,19 @@ eventFrame:SetScript("OnEvent", function(self, event, ...)
                     MPlusAutoLFGDB[k] = v
                 end
             end
+        elseif loadedName == "Blizzard_LFGList" or loadedName == "Blizzard_GroupFinder" then
+            if ns.LFGService and ns.LFGService.HookEntryCreation then
+                ns.LFGService:HookEntryCreation()
+            end
         end
     elseif event == "PLAYER_LOGIN" then
         ns.UI:Initialize()
         Core:RefreshKeystoneInfo()
         Core:UpdateUI()
+
+        if ns.LFGService and ns.LFGService.HookEntryCreation then
+            ns.LFGService:HookEntryCreation()
+        end
 
         local debugStatus = (MPlusAutoLFGDB and MPlusAutoLFGDB.debug) and "|cff00ff00ON|r" or "OFF"
         Logger:Info("CORE", format("v%s loaded. Type |cff00ff00/malfg|r to open HUD, |cff00ff00/malfg debug|r for verbose evaluation logs (currently %s).", ns.VERSION, debugStatus))
