@@ -34,25 +34,13 @@ end
 ---Get the active mock engine
 ---@return table|nil
 function LFGService:GetMockEngine()
-    if not mockEngine and ns.IsDebugMode and ns.IsDebugMode() then
-        mockEngine = ns.MockEngine
-    end
     return mockEngine
 end
 
 ---Check if mock engine is currently active
 ---@return boolean
 function LFGService:IsMockActive()
-    if mockEngine ~= nil then
-        return true
-    end
-    if ns.IsDebugMode and ns.IsDebugMode() then
-        if not mockEngine and ns.MockEngine then
-            mockEngine = ns.MockEngine
-        end
-        return true
-    end
-    return false
+    return mockEngine ~= nil and mockEngine.IsEnabled and mockEngine:IsEnabled() == true
 end
 
 -------------------------------------------------------------------------------
@@ -183,19 +171,35 @@ function LFGService:CreateListing(activityID, requiredIlvl, title, description)
         end
     end
 
-    -- In live client mode: C_LFGList.CreateListing is a Blizzard protected function.
-    -- Calling it from third-party addon code triggers ADDON_ACTION_BLOCKED.
-    -- If group already has an active listing:
+    -- Real Live Group Listing
+    -- 1. If group is already listed in Premade Groups:
     if C_LFGList and C_LFGList.HasActiveEntryInfo and C_LFGList.HasActiveEntryInfo() then
         return true
     end
 
-    -- If not yet listed, safely open Blizzard's native Group Finder frame
-    if PVEFrame_ShowFrame then
-        PVEFrame_ShowFrame("GroupFinderFrame", "LFGListPVEStub")
+    -- 2. Attempt native creation call with activityID and requiredIlvl
+    -- (Never call tainted functions like SetEntryTitle or ClearCreationTextFields)
+    local ok = false
+    if C_LFGList and C_LFGList.CreateListing and activityID and activityID > 0 then
+        local status, res = pcall(C_LFGList.CreateListing, activityID, requiredIlvl or 0, 0, false, false)
+        if status and res then
+            ok = true
+        else
+            local status2, res2 = pcall(C_LFGList.CreateListing, { activityID }, requiredIlvl or 0, 0, false, false)
+            if status2 and res2 then
+                ok = true
+            end
+        end
     end
 
-    return false
+    -- 3. If direct call was blocked or didn't succeed, open Blizzard's Group Finder
+    if not ok then
+        if PVEFrame_ShowFrame then
+            pcall(PVEFrame_ShowFrame, "GroupFinderFrame", "LFGListPVEStub")
+        end
+    end
+
+    return ok
 end
 
 ---Update existing active listing

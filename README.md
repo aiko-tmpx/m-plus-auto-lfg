@@ -83,7 +83,6 @@ stateDiagram-v2
 ```
 MPlusAutoLFG/
 ├── MPlusAutoLFG.toc         # TOC file with Midnight/Retail interface version & SavedVariables
-├── MPlus Auto LFG.toc       # Compatibility TOC for space-delimited folder naming
 ├── Constants.lua            # Utility tables, class IDs, spec IDs, and role definitions
 ├── Services/
 │   └── LFGService.lua       # Data Access Layer / Blizzard API adapter & mock delegate
@@ -103,10 +102,11 @@ MPlusAutoLFG/
 | `/malfg` | Toggle main floating HUD window |
 | `/malfg start` | Read active keystone, calculate dynamic ilvl, and create automated LFG listing |
 | `/malfg pause` | Pause or resume automated queue evaluation |
-| `/malfg debug` | Toggle Debug Mode & activate internal MockEngine |
-| `/malfg sim` | Ingest 7 realistic synthetic applicants into the queue |
+| `/malfg debug` | Toggle verbose evaluation chat logs (works for real listings & simulations) |
+| `/malfg sim` | Ingest 7 synthetic test fixtures into the queue for offline testing |
 | `/malfg sim leaver` | Simulate an invited candidate declining/leaving to test slot recovery |
-| `/malfg reset` | Wipe mock data, reset pending invites, and restore frame positions |
+| `/malfg sim off` | Stop offline simulation and return to live Premade Groups mode |
+| `/malfg reset` | Wipe simulation, reset pending invites, and restore frame positions |
 
 ---
 
@@ -122,10 +122,17 @@ MPlusAutoLFG/
 
 ---
 
-## Installation
+## Installation & Live Usage
 
 1. Copy the `MPlusAutoLFG` folder to:
    `World of Warcraft\_retail_\Interface\AddOns\MPlusAutoLFG\`
 2. Launch or reload World of Warcraft (`/reload`).
-3. Type `/malfg` in chat to toggle the floating HUD.
-4. Type `/malfg debug` followed by `/malfg sim` to test the synthetic FIFO queue offline.
+3. Type `/malfg` in chat or click the Minimap button to toggle the HUD.
+4. **Testing with Real Premade Groups**:
+   - Turn on verbose debugging: `/malfg debug`
+   - Click **"Start Queue"** (or list your keystone in the native Premade Groups UI).
+   - As real players apply, `MPlusAutoLFG` prints every candidate evaluation to chat (`[FIFO]`, `[REJECT]`), showing why applicants pass or fail rules in real time.
+   - Click the prominent Blizzard-native **"CLICK TO INVITE"** button to invite the top qualified applicant.
+5. **Offline Simulation**:
+   - Run `/malfg sim` to inject the 7 test fixtures into the queue.
+   - Run `/malfg sim off` or `/malfg reset` when finished.
