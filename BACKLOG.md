@@ -99,6 +99,20 @@ This document tracks identified bugs, edge cases, and feature refinements to be 
 
 ---
 
+### [ ] Task 8: Streamline HUD Actions - Unified Primary Button & Remove Delist
+* **Reported Behavior / Feature Request:**
+  1. Remove the "Start Queue" / "Stop Queue / Delist" button (`no 'delist' button as its not working`).
+  2. Replace `"CLICK TO INVITE"` badge text with concise, standard `"Invite"`.
+  3. Transform the primary action button into a unified contextual action:
+     * When no group is listed (`IDLE` state): Displays **`"Open LFG Window"`** (enabled). Clicking it invokes `LFGService:OpenGroupFinder()`, opening the Premade Groups window and partially pre-filling the listing form (Category 2 Dungeons, Relaxed playstyle, keystone ilvl).
+     * When group is listed / active (`LISTED`, `ASSEMBLING`):
+       * Displays **`"Invite"`** (enabled) when a qualified candidate is present.
+       * Displays **`"INVITED"`** (disabled) when an invitation is actively pending response.
+       * Displays **`"Invite"`** (disabled) while awaiting qualified applicants.
+  4. Refactor HUD bottom layout to cleanly host the single consolidated action button.
+
+---
+
 ## Execution Order
 We will address these one by one:
 1. **Task 1:** Fix Premade Groups Category Selection (Dungeons Tab Navigation) - *Completed*.
@@ -108,3 +122,4 @@ We will address these one by one:
 5. **Task 5:** Replace Role Text with Spec Icons - *Completed*.
 6. **Task 6:** Replace Window Header Title with Addon Name - *Completed*.
 7. **Task 7:** Add 'List AutoLFG Group' Red Blizzard-Style Button to LFG Window - *Completed*.
+8. **Task 8:** Streamline HUD Actions - Unified Primary Button & Remove Delist.
