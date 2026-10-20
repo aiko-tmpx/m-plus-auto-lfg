@@ -163,13 +163,12 @@ function UI:CreateMainHUD()
     inviteBtn:Disable()
 
     -- Secondary Control Buttons Row: [Start / Delist Queue] and [Pause / Resume]
-    local startBtn = CreateFrame("Button", "MPlusAutoLFGStartButton", f, "SecureActionButtonTemplate, UIPanelButtonTemplate")
+    local startBtn = CreateFrame("Button", "MPlusAutoLFGStartButton", f, "UIPanelButtonTemplate")
     startBtn:SetSize(152, 24)
     startBtn:SetPoint("BOTTOMLEFT", f, "BOTTOMLEFT", 14, 12)
     startBtn:SetText("Start Queue")
     f.startBtn = startBtn
 
-    startBtn:RegisterForClicks("LeftButtonUp")
     startBtn:SetScript("OnClick", function()
         if ns.Core then
             if ns.LFGService:HasActiveListing() or ns.CurrentState == ns.States.LISTED or ns.CurrentState == ns.States.ASSEMBLING then

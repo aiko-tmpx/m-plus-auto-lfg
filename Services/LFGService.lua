@@ -120,10 +120,58 @@ end
 -------------------------------------------------------------------------------
 ---Open Blizzard's native Premade Groups frame cleanly without taint
 function LFGService:OpenGroupFinder()
-    if PVEFrame_ShowFrame then
-        pcall(PVEFrame_ShowFrame, "GroupFinderFrame", "LFGListPVEStub")
+    -- 1. Try Blizzard's dedicated LFG opener (handles tabs, frames, and subpanels natively)
+    if LFGListUtil_OpenBestWindow then
+        pcall(LFGListUtil_OpenBestWindow)
+    end
+
+    -- 2. Ensure PVEFrame is open and displaying the Group Finder panel
+    if PVEFrame then
+        if not PVEFrame:IsShown() then
+            if ShowUIPanel then
+                pcall(ShowUIPanel, PVEFrame)
+            else
+                pcall(PVEFrame.Show, PVEFrame)
+            end
+        end
+
+        local stub = _G["LFGListPVEStub"]
+        if stub and PVEFrame_ShowFrame then
+            pcall(PVEFrame_ShowFrame, "GroupFinderFrame", stub)
+        elseif stub and PVEFrame_ToggleFrame then
+            pcall(PVEFrame_ToggleFrame, "GroupFinderFrame", stub)
+        end
     elseif ToggleLFDParentFrame then
         pcall(ToggleLFDParentFrame)
+    end
+
+    -- 3. If GroupFinderFrame has group buttons, click Premade Groups button
+    if GroupFinderFrame and GroupFinderFrame.groupButtons then
+        for _, btn in ipairs(GroupFinderFrame.groupButtons) do
+            if btn and (btn.tooltip == LFGLIST_NAME or (btn.GetText and btn:GetText() and btn:GetText():find("Premade"))) then
+                pcall(btn.Click, btn)
+                break
+            end
+        end
+    end
+
+    -- 4. If CategorySelection is visible, automatically click "Start a Group"
+    if LFGListFrame and LFGListFrame.CategorySelection and LFGListFrame.CategorySelection:IsShown() then
+        if LFGListFrame.CategorySelection.StartGroupButton and LFGListFrame.CategorySelection.StartGroupButton:IsEnabled() then
+            pcall(LFGListFrame.CategorySelection.StartGroupButton.Click, LFGListFrame.CategorySelection.StartGroupButton)
+        end
+    end
+
+    -- 5. If EntryCreation is visible, prefill recommended item level
+    if LFGListFrame and LFGListFrame.EntryCreation and LFGListFrame.EntryCreation:IsShown() then
+        local kMapID, kLevel = self:GetOwnedKeystoneInfo()
+        if kLevel and kLevel > 0 then
+            local leaderIlvl = self:GetLeaderEquippedItemLevel()
+            local reqIlvl = self:CalculateRequiredItemLevel(leaderIlvl, kLevel)
+            if LFGListFrame.EntryCreation.ItemLevel and LFGListFrame.EntryCreation.ItemLevel.EditBox then
+                pcall(LFGListFrame.EntryCreation.ItemLevel.EditBox.SetText, LFGListFrame.EntryCreation.ItemLevel.EditBox, tostring(reqIlvl))
+            end
+        end
     end
 end
 

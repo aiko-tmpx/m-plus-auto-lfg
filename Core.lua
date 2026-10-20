@@ -434,16 +434,7 @@ end
 function Core:StartMatchmaking()
     self:RefreshKeystoneInfo()
 
-    if not activeKeystone.keystoneLevel or activeKeystone.keystoneLevel <= 0 then
-        Logger:Warn("QUEUE", "No active Mythic Keystone found in inventory.")
-        return
-    end
-
-    local leaderIlvl = ns.LFGService:GetLeaderEquippedItemLevel()
-    local requiredIlvl = ns.LFGService:CalculateRequiredItemLevel(leaderIlvl, activeKeystone.keystoneLevel)
-    local title = format(ns.DefaultConfig.listingTitleTemplate, activeKeystone.keystoneLevel)
-    local desc = ns.DefaultConfig.listingDescTemplate
-
+    -- 1. If group is already listed in Premade Groups, attach immediately
     if ns.LFGService:HasActiveListing() then
         self:StartStopwatch()
         local rosterContext = self:GetRosterContext()
@@ -451,10 +442,23 @@ function Core:StartMatchmaking()
         self:SetState(nextState, "Attached to active Premade Groups listing")
         self:EvaluateQueue()
         self:UpdateUI()
-        Logger:Info("QUEUE", format("Connected to Premade Groups listing for %s +%d. Monitoring real applicants (Debug: %s)...", activeKeystone.dungeonName, activeKeystone.keystoneLevel, ns.IsDebugMode() and "|cff00ff00ON|r" or "OFF"))
+        local dName = (activeKeystone.dungeonName and activeKeystone.dungeonName ~= "Unknown Dungeon") and activeKeystone.dungeonName or "Dungeon"
+        local kLvl = (activeKeystone.keystoneLevel and activeKeystone.keystoneLevel > 0) and ("+" .. activeKeystone.keystoneLevel) or ""
+        Logger:Info("QUEUE", format("Connected to active Premade Groups listing for %s %s. Monitoring applicants (Debug: %s)...", dName, kLvl, ns.IsDebugMode() and "|cff00ff00ON|r" or "OFF"))
+        return
+    end
+
+    -- 2. Not yet listed: Open Blizzard's Premade Groups frame cleanly
+    ns.LFGService:OpenGroupFinder()
+
+    local leaderIlvl = ns.LFGService:GetLeaderEquippedItemLevel()
+    local keyLvl = activeKeystone.keystoneLevel or 0
+    local requiredIlvl = ns.LFGService:CalculateRequiredItemLevel(leaderIlvl, keyLvl)
+
+    if keyLvl > 0 then
+        Logger:Info("LISTING", format("Opened Premade Groups for %s +%d (Recommended min ilvl: %d). Select Title, Playstyle, Difficulty and click 'List Group' to activate auto-matchmaking.", activeKeystone.dungeonName, keyLvl, requiredIlvl))
     else
-        ns.LFGService:OpenGroupFinder()
-        Logger:Info("LISTING", format("Opened Premade Groups for %s +%d (Recommended min ilvl: %d). Click 'List Group' to activate matchmaking.", activeKeystone.dungeonName, activeKeystone.keystoneLevel, requiredIlvl))
+        Logger:Info("LISTING", format("Opened Premade Groups (Leader ilvl: %d). Select your activity, title, playstyle, and difficulty, then click 'List Group' to activate auto-matchmaking.", leaderIlvl))
     end
 end
 
