@@ -436,7 +436,7 @@ function Core:StartMatchmaking()
     self:RefreshKeystoneInfo()
 
     if not activeKeystone.keystoneLevel or activeKeystone.keystoneLevel <= 0 then
-        Logger:Warn("QUEUE", "No active Mythic Keystone found in inventory. Cannot create listing.")
+        Logger:Warn("QUEUE", "No active Mythic Keystone found in inventory.")
         return
     end
 
@@ -445,18 +445,28 @@ function Core:StartMatchmaking()
     local title = format(ns.DefaultConfig.listingTitleTemplate, activeKeystone.keystoneLevel)
     local desc = ns.DefaultConfig.listingDescTemplate
 
-    Logger:Info("LISTING", format("Creating automated queue listing for %s +%d (Min ilvl: %d)...", activeKeystone.dungeonName, activeKeystone.keystoneLevel, requiredIlvl))
-
-    local success = ns.LFGService:CreateListing(activeKeystone.activityID, requiredIlvl, title, desc)
-    if success then
+    if ns.IsDebugMode and ns.IsDebugMode() then
+        Logger:Info("MOCK", format("Starting simulated queue for %s +%d (Min ilvl: %d)...", activeKeystone.dungeonName, activeKeystone.keystoneLevel, requiredIlvl))
+        ns.LFGService:CreateListing(activeKeystone.activityID, requiredIlvl, title, desc)
         self:StartStopwatch()
-        local rosterContext = self:GetRosterContext()
-        local nextState = (rosterContext.totalCount > 1) and ns.States.ASSEMBLING or ns.States.LISTED
-        self:SetState(nextState, "Listing created")
+        self:SetState(ns.States.LISTED, "Simulated listing started")
         self:EvaluateQueue()
         ns.UI:Show()
+        self:UpdateUI()
     else
-        Logger:Warn("LISTING", "Listing creation failed or requires manual click in Blizzard Group Finder.")
+        -- Live client mode
+        if ns.LFGService:HasActiveListing() then
+            self:StartStopwatch()
+            local rosterContext = self:GetRosterContext()
+            local nextState = (rosterContext.totalCount > 1) and ns.States.ASSEMBLING or ns.States.LISTED
+            self:SetState(nextState, "Attached to active Premade Groups listing")
+            self:EvaluateQueue()
+            self:UpdateUI()
+            Logger:Info("QUEUE", format("Connected to Premade Groups listing for %s +%d. Evaluating applicants...", activeKeystone.dungeonName, activeKeystone.keystoneLevel))
+        else
+            Logger:Info("LISTING", format("Opening Premade Groups. Please submit listing for %s +%d (Recommended min ilvl: %d).", activeKeystone.dungeonName, activeKeystone.keystoneLevel, requiredIlvl))
+            ns.LFGService:CreateListing(activeKeystone.activityID, requiredIlvl, title, desc)
+        end
     end
 end
 
@@ -469,6 +479,32 @@ function Core:StopMatchmaking()
     ns.UI:ClearCandidateCard()
     self:UpdateUI()
     Logger:Info("LISTING", "Group delisted from Premade Groups.")
+end
+
+---Handle Blizzard LFG_LIST_ACTIVE_ENTRY_UPDATE
+function Core:OnActiveEntryUpdated()
+    if ns.IsDebugMode and ns.IsDebugMode() then return end
+
+    if ns.LFGService:HasActiveListing() then
+        if ns.CurrentState == ns.States.IDLE then
+            self:StartStopwatch()
+            local rosterContext = self:GetRosterContext()
+            local nextState = (rosterContext.totalCount > 1) and ns.States.ASSEMBLING or ns.States.LISTED
+            self:SetState(nextState, "Active Premade Group listing detected")
+            Logger:Info("QUEUE", "Active Premade Group listing detected. Automated matchmaking started!")
+            self:EvaluateQueue()
+            self:UpdateUI()
+        end
+    else
+        if ns.CurrentState == ns.States.LISTED or ns.CurrentState == ns.States.ASSEMBLING then
+            self:SetState(ns.States.IDLE, "Premade Group listing was removed")
+            self:StopStopwatch()
+            wipe(pendingInvites)
+            ns.UI:ClearCandidateCard()
+            self:UpdateUI()
+            Logger:Info("QUEUE", "Premade Group listing delisted.")
+        end
+    end
 end
 
 ---Pause or resume automated queue evaluation
@@ -514,6 +550,7 @@ eventFrame:RegisterEvent("ADDON_LOADED")
 eventFrame:RegisterEvent("PLAYER_LOGIN")
 eventFrame:RegisterEvent("LFG_LIST_APPLICANT_LIST_UPDATED")
 eventFrame:RegisterEvent("LFG_LIST_APPLICANT_UPDATED")
+eventFrame:RegisterEvent("LFG_LIST_ACTIVE_ENTRY_UPDATE")
 eventFrame:RegisterEvent("GROUP_ROSTER_UPDATE")
 eventFrame:RegisterEvent("CHALLENGE_MODE_KEYSTONE_SLOTTED")
 
@@ -532,7 +569,7 @@ end)
 eventFrame:SetScript("OnEvent", function(self, event, ...)
     if event == "ADDON_LOADED" then
         local loadedName = ...
-        if loadedName == addonName or loadedName == "MPlusAutoLFG" or loadedName == "MPlus Auto LFG" then
+        if loadedName == addonName or loadedName == "MPlusAutoLFG" then
             -- Initialize SavedVariables
             if not MPlusAutoLFGDB then
                 MPlusAutoLFGDB = CopyTable(ns.DefaultConfig)
@@ -544,11 +581,18 @@ eventFrame:SetScript("OnEvent", function(self, event, ...)
             end
         end
     elseif event == "PLAYER_LOGIN" then
+        -- Restore mock engine if debug mode was persisted
+        if MPlusAutoLFGDB and MPlusAutoLFGDB.debug then
+            ns.MockEngine:Enable()
+        end
+
         ns.UI:Initialize()
         Core:RefreshKeystoneInfo()
         Core:UpdateUI()
 
         Logger:Info("CORE", format("v%s loaded. Type |cff00ff00/malfg|r to open HUD, |cff00ff00/malfg debug|r for dev mode.", ns.VERSION))
+    elseif event == "LFG_LIST_ACTIVE_ENTRY_UPDATE" then
+        Core:OnActiveEntryUpdated()
     elseif event == "LFG_LIST_APPLICANT_LIST_UPDATED" then
         Core:EvaluateQueue()
         Core:UpdateUI()
