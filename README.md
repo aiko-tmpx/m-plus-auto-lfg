@@ -89,7 +89,7 @@ MPlusAutoLFG/
 │   └── LFGService.lua       # Data Access Layer / Blizzard API adapter & mock delegate
 ├── Validation.lua           # Declarative Validation Pipeline (Chain of Responsibility)
 ├── MockEngine.lua           # Synthetic queue generator & realistic test fixtures
-├── UI.lua                   # Native floating HUD, party badges, showcase card & secure button
+├── UI.lua                   # Authentic Blizzard UI (BasicFrameTemplateWithInset & UIPanelButtonTemplate)
 ├── Core.lua                 # FSM orchestrator, event bus, roster tracking & slash commands
 └── README.md                # Project documentation
 ```
