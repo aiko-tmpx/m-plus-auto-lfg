@@ -6,19 +6,21 @@ This document tracks identified bugs, edge cases, and feature refinements to be 
 
 ## Active Backlog Items
 
-### [ ] Task 1: Fix Premade Groups Category Selection (Dungeons Tab Navigation)
+### [x] Task 1: Fix Premade Groups Category Selection (Dungeons Tab Navigation)
+* **Status:** Completed
 * **Reported Behavior:** 
   Clicking "Start Queue" opens `LFGListFrame` and clicks "Start a Group", but only opens the Mythic+ dungeon creation form if the player had already manually clicked the **"Dungeons"** tab. If another category (e.g. Raids, Delves, Quests) was selected previously, it clicks "Start a Group" on whatever tab was preselected.
-* **Investigation & Technical Details:**
+* **Investigation & Solution:**
   * In Blizzard's `Blizzard_LFGList` UI:
-    * `LFGListFrame.CategorySelection` lists available categories via `CategoryButtons` (`1` = Quests, `2` = Dungeons, `3` = Raids, `4` = Arena, `114` = Delves).
-    * Category selection is managed by `LFGListCategorySelection_SelectCategory(LFGListFrame.CategorySelection, 2, 0)`.
-    * Alternatively, each button in `LFGListFrame.CategorySelection.CategoryButtons` has `.categoryID == 2`. Calling `btn:Click()` selects Dungeons natively.
-    * In `LFGListFrame.EntryCreation`, activity selection can be mapped directly to the keystone's `activityID` via `C_LFGList.GetActivityInfoTable(activityID)` or `LFGListEntryCreation_Select(LFGListFrame.EntryCreation, nil, nil, nil, activityID)` if not tainted.
-* **Action Items:**
-  1. Inspect `LFGListFrame.CategorySelection` when opening the group finder.
-  2. Explicitly select Category `2` (`LFGListCategorySelection_SelectCategory` or clicking the Dungeons button) before triggering `StartGroupButton:Click()`.
-  3. Verify whether selecting the category causes taint or if simulating the native button click is untainted.
+    * `CategoryButtons` contains the category buttons where Dungeons is Category `2` (`GROUP_FINDER_CATEGORY_ID_DUNGEONS`).
+    * Blizzard's category selection and panel transitions are standard Lua (`LFGListCategorySelectionButton_OnClick`, `LFGListCategorySelection_SelectCategory`, `LFGListFrame_SetActivePanel`, `LFGListEntryCreationCancelButton_OnClick`), completely separate from protected C-functions like `C_LFGList.CreateListing`.
+  * Implemented `SelectDungeonsCategoryAndStartGroup()`:
+    1. If `LFGListFrame.EntryCreation` is open for a non-dungeon category, clicks `CancelButton` (or switches back to `CategorySelection`).
+    2. If `LFGListFrame.SearchPanel` is open, clicks `BackButton` to return to `CategorySelection`.
+    3. On `CategorySelection`, finds the button where `btn.categoryID == 2` and clicks it (falling back to `LFGListCategorySelection_SelectCategory`).
+    4. Triggers `catSelection.StartGroupButton:Click()`.
+    5. Blizzard automatically queries `C_LFGList.GetOwnedKeystoneActivityAndGroupAndLevel()` and selects the keystone dungeon.
+    6. Updated `SetDefaultListingPlaystyle()` to properly set `frame.generalPlaystyle = Enum.LFGEntryGeneralPlaystyle.FunRelaxed` (2), call `LFGListEntryCreation_OnPlayStyleSelectedInternal`, and update the dropdown widget and valid state so "Relaxed" is prefilled and the "List Group" button is ready to click.
 
 ---
 

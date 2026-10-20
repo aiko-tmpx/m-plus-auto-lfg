@@ -118,6 +118,83 @@ end
 -------------------------------------------------------------------------------
 -- LFG Listing Management
 -------------------------------------------------------------------------------
+---Helper to switch LFGListFrame to CategorySelection, select Dungeons (category 2), and start group
+---@return boolean isDungeonCategoryReady
+local function SelectDungeonsCategoryAndStartGroup()
+    if not LFGListFrame then return false end
+
+    local DUNGEON_CATEGORY_ID = _G["GROUP_FINDER_CATEGORY_ID_DUNGEONS"] or 2
+
+    -- 1. If currently inside EntryCreation for a NON-dungeon category, cancel back to CategorySelection
+    if LFGListFrame.EntryCreation and LFGListFrame.EntryCreation:IsShown() then
+        if LFGListFrame.EntryCreation.selectedCategory == DUNGEON_CATEGORY_ID then
+            -- Already on Dungeons EntryCreation form!
+            return true
+        else
+            if LFGListFrame.EntryCreation.CancelButton and LFGListFrame.EntryCreation.CancelButton.Click then
+                pcall(LFGListFrame.EntryCreation.CancelButton.Click, LFGListFrame.EntryCreation.CancelButton)
+            elseif LFGListFrame_SetActivePanel and LFGListFrame.CategorySelection then
+                pcall(LFGListFrame_SetActivePanel, LFGListFrame, LFGListFrame.CategorySelection)
+            end
+        end
+    end
+
+    -- 2. If currently inside SearchPanel, return back to CategorySelection
+    if LFGListFrame.SearchPanel and LFGListFrame.SearchPanel:IsShown() then
+        if LFGListFrame.SearchPanel.BackButton and LFGListFrame.SearchPanel.BackButton.Click then
+            pcall(LFGListFrame.SearchPanel.BackButton.Click, LFGListFrame.SearchPanel.BackButton)
+        elseif LFGListFrame_SetActivePanel and LFGListFrame.CategorySelection then
+            pcall(LFGListFrame_SetActivePanel, LFGListFrame, LFGListFrame.CategorySelection)
+        end
+    end
+
+    -- 3. If CategorySelection is not the active panel, activate it (if not already listed in LFG)
+    if LFGListFrame.CategorySelection and not LFGListFrame.CategorySelection:IsShown() then
+        if LFGListFrame_SetActivePanel and not (C_LFGList and C_LFGList.HasActiveEntryInfo and C_LFGList.HasActiveEntryInfo()) then
+            pcall(LFGListFrame_SetActivePanel, LFGListFrame, LFGListFrame.CategorySelection)
+        end
+    end
+
+    -- 4. Select Dungeons (Category 2) on CategorySelection
+    local catSelection = LFGListFrame.CategorySelection
+    if catSelection and catSelection:IsShown() then
+        -- Refresh category buttons if available
+        if LFGListCategorySelection_UpdateCategoryButtons then
+            pcall(LFGListCategorySelection_UpdateCategoryButtons, catSelection)
+        end
+
+        -- Find the Dungeons button in CategoryButtons (categoryID == 2)
+        local dungeonBtn = nil
+        if catSelection.CategoryButtons then
+            for _, btn in ipairs(catSelection.CategoryButtons) do
+                if btn and btn.categoryID == DUNGEON_CATEGORY_ID then
+                    dungeonBtn = btn
+                    break
+                end
+            end
+        end
+
+        if dungeonBtn and dungeonBtn.Click then
+            pcall(dungeonBtn.Click, dungeonBtn)
+        elseif LFGListCategorySelection_SelectCategory then
+            pcall(LFGListCategorySelection_SelectCategory, catSelection, DUNGEON_CATEGORY_ID, 0)
+        end
+
+        -- Clear auto create mode if present
+        if LFGListEntryCreation_ClearAutoCreateMode and LFGListFrame.EntryCreation then
+            pcall(LFGListEntryCreation_ClearAutoCreateMode, LFGListFrame.EntryCreation)
+        end
+
+        -- 5. Click "Start a Group"
+        if catSelection.StartGroupButton and catSelection.StartGroupButton:IsEnabled() then
+            pcall(catSelection.StartGroupButton.Click, catSelection.StartGroupButton)
+            return true
+        end
+    end
+
+    return false
+end
+
 ---Open Blizzard's native Premade Groups frame cleanly without taint
 function LFGService:OpenGroupFinder()
     -- 1. Try Blizzard's dedicated LFG opener (handles tabs, frames, and subpanels natively)
@@ -155,23 +232,29 @@ function LFGService:OpenGroupFinder()
         end
     end
 
-    -- 4. If CategorySelection is visible, automatically click "Start a Group"
-    if LFGListFrame and LFGListFrame.CategorySelection and LFGListFrame.CategorySelection:IsShown() then
-        if LFGListFrame.CategorySelection.StartGroupButton and LFGListFrame.CategorySelection.StartGroupButton:IsEnabled() then
-            pcall(LFGListFrame.CategorySelection.StartGroupButton.Click, LFGListFrame.CategorySelection.StartGroupButton)
-        end
-    end
+    -- 4. Explicitly ensure Category 2 (Dungeons) is selected and "Start a Group" is clicked
+    SelectDungeonsCategoryAndStartGroup()
 
     -- 5. Hook and set default listing parameters (Playstyle "Relaxed", ilvl, title)
     self:HookEntryCreation()
     self:SetDefaultListingPlaystyle()
 
-    -- Multiple frame ticks to ensure fields populate after Blizzard's layout updates
+    -- Multiple frame ticks to ensure category selection and fields populate after Blizzard's layout updates
     if C_Timer and C_Timer.After then
         C_Timer.After(0.05, function()
+            local frame = LFGListFrame and LFGListFrame.EntryCreation
+            local DUNGEON_CATEGORY_ID = _G["GROUP_FINDER_CATEGORY_ID_DUNGEONS"] or 2
+            if not (frame and frame:IsShown() and frame.selectedCategory == DUNGEON_CATEGORY_ID) then
+                SelectDungeonsCategoryAndStartGroup()
+            end
             self:SetDefaultListingPlaystyle()
         end)
         C_Timer.After(0.15, function()
+            local frame = LFGListFrame and LFGListFrame.EntryCreation
+            local DUNGEON_CATEGORY_ID = _G["GROUP_FINDER_CATEGORY_ID_DUNGEONS"] or 2
+            if not (frame and frame:IsShown() and frame.selectedCategory == DUNGEON_CATEGORY_ID) then
+                SelectDungeonsCategoryAndStartGroup()
+            end
             self:SetDefaultListingPlaystyle()
         end)
     end
@@ -183,54 +266,38 @@ function LFGService:SetDefaultListingPlaystyle()
     if not frame then return end
 
     -- Playstyle enum ID for Casual / Relaxed:
-    -- In Enum.LFGEntryPlaystyle: 0 = None, 1 = Standard, 2 = Casual ("Relaxed"), 3 = Hardcore ("Competitive")
-    local playstyleID = (Enum and Enum.LFGEntryPlaystyle and (Enum.LFGEntryPlaystyle.Casual or Enum.LFGEntryPlaystyle.Relaxed))
-                     or (Enum and Enum.LFGEntryGeneralPlaystyle and (Enum.LFGEntryGeneralPlaystyle.Casual or Enum.LFGEntryGeneralPlaystyle.Relaxed))
-                     or 2
+    -- In Enum.LFGEntryGeneralPlaystyle: 1 = Learning, 2 = FunRelaxed ("Relaxed"), 3 = FunSerious, 4 = Expert
+    local generalPlaystyle = (Enum and Enum.LFGEntryGeneralPlaystyle and Enum.LFGEntryGeneralPlaystyle.FunRelaxed) or 2
+    local legacyPlaystyle = (Enum and Enum.LFGEntryPlaystyle and (Enum.LFGEntryPlaystyle.Casual or Enum.LFGEntryPlaystyle.Relaxed)) or 2
 
-    local playstyleText = "Relaxed"
-    local activityID = frame.selectedActivity
-    if not activityID or activityID == 0 then
-        local _, _, _, _, actID = self:GetOwnedKeystoneInfo()
-        activityID = actID
+    local playstyleText = _G["GROUP_FINDER_GENERAL_PLAYSTYLE2"] or "Relaxed"
+
+    -- 1. Set internal state variables on EntryCreation frame (both general and legacy)
+    frame.generalPlaystyle = generalPlaystyle
+    frame.selectedPlaystyle = legacyPlaystyle
+
+    -- 2. Call Blizzard internal handler if available (updates prebuilt title and validity state)
+    if LFGListEntryCreation_OnPlayStyleSelectedInternal then
+        pcall(LFGListEntryCreation_OnPlayStyleSelectedInternal, frame, generalPlaystyle)
     end
 
-    if activityID and activityID > 0 and C_LFGList and C_LFGList.GetActivityInfoTable then
-        local activityInfo = C_LFGList.GetActivityInfoTable(activityID)
-        if activityInfo and C_LFGList.GetPlaystyleString then
-            local ok, s = pcall(C_LFGList.GetPlaystyleString, playstyleID, activityInfo)
-            if ok and s and s ~= "" then
-                playstyleText = s
-            end
-        end
-    end
-
-    -- 1. Set internal state variable on EntryCreation frame (Blizzard's primary variable)
-    frame.selectedPlaystyle = playstyleID
-
-    -- 2. Target the dropdown widget and update its state / text
+    -- 3. Target the dropdown widget and update its state / text
     local dropdown = frame.PlayStyleDropdown or frame.PlaystyleDropdown or frame.playStyleDropdown
     if dropdown then
-        dropdown.selectedPlaystyle = playstyleID
+        dropdown.selectedPlaystyle = generalPlaystyle
 
         -- Modern 11.0+ DropdownButton API
-        if dropdown.SetSelection then
-            pcall(dropdown.SetSelection, dropdown, function(data) return data == playstyleID end)
-        end
-        if dropdown.SetSelectedValue then
-            pcall(dropdown.SetSelectedValue, dropdown, playstyleID)
-        end
-        if dropdown.SetValue then
-            pcall(dropdown.SetValue, dropdown, playstyleID)
-        end
-        if dropdown.SetSelected then
-            pcall(dropdown.SetSelected, dropdown, playstyleID)
-        end
         if dropdown.SetText then
             pcall(dropdown.SetText, dropdown, playstyleText)
         end
         if dropdown.SetDefaultText then
             pcall(dropdown.SetDefaultText, dropdown, playstyleText)
+        end
+        if dropdown.GenerateMenu then
+            pcall(dropdown.GenerateMenu, dropdown)
+        end
+        if dropdown.UpdateSelections then
+            pcall(dropdown.UpdateSelections, dropdown)
         end
         if dropdown.Text and dropdown.Text.SetText then
             pcall(dropdown.Text.SetText, dropdown.Text, playstyleText)
@@ -238,14 +305,14 @@ function LFGService:SetDefaultListingPlaystyle()
 
         -- Legacy UIDropDownMenu API fallback
         if UIDropDownMenu_SetSelectedValue then
-            pcall(UIDropDownMenu_SetSelectedValue, dropdown, playstyleID)
+            pcall(UIDropDownMenu_SetSelectedValue, dropdown, generalPlaystyle)
         end
         if UIDropDownMenu_SetText then
             pcall(UIDropDownMenu_SetText, dropdown, playstyleText)
         end
     end
 
-    -- 3. Pre-fill title if empty and keystone exists
+    -- 4. Pre-fill title if empty and keystone exists
     local _, kLevel, dungeonName = self:GetOwnedKeystoneInfo()
     if kLevel and kLevel > 0 and frame.Name and frame.Name.GetText and frame.Name:GetText() == "" then
         local defaultTitle = format(ns.DefaultConfig.listingTitleTemplate, kLevel)
@@ -254,7 +321,7 @@ function LFGService:SetDefaultListingPlaystyle()
         end
     end
 
-    -- 4. Pre-fill item level if empty and keystone exists
+    -- 5. Pre-fill item level if empty and keystone exists
     if kLevel and kLevel > 0 and frame.ItemLevel and frame.ItemLevel.EditBox then
         local currentIlvl = tonumber(frame.ItemLevel.EditBox:GetText()) or 0
         if currentIlvl <= 0 then
@@ -264,7 +331,7 @@ function LFGService:SetDefaultListingPlaystyle()
         end
     end
 
-    -- 5. Trigger Blizzard's entry validation so the List Group button refreshes
+    -- 6. Trigger Blizzard's entry validation so the List Group button refreshes
     if LFGListEntryCreation_UpdateValidState then
         pcall(LFGListEntryCreation_UpdateValidState, frame)
     end
