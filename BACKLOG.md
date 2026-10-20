@@ -36,19 +36,15 @@ This document tracks identified bugs, edge cases, and feature refinements to be 
 
 ---
 
-### [ ] Task 3: Real-Time Roster & Utility Requirement Updates on Leaver
+### [x] Task 3: Real-Time Roster & Utility Requirement Updates on Leaver
+* **Status:** Completed
 * **Reported Behavior:**
   When a player leaves the group during assembly, the group requirements (Bloodlust, Combat Res, open slot counts) must immediately update on the HUD and re-evaluate the queue.
-* **Technical Details:**
-  * When `GROUP_ROSTER_UPDATE` fires or when someone drops:
-    * Rescan current party members via `GetNumGroupMembers()`, `UnitClass`, `UnitGroupRolesAssigned`.
-    * Recompute `hasBL`, `hasCR`, and remaining open slots.
-    * Update `f.utilText` on the HUD immediately to reflect changes (e.g. `BL [Need]`, `CR [Ready]`, `(2 open)`).
-    * Re-run `Core:EvaluateQueue()` so the FIFO candidate pipeline adapts to the freed slot and missing utility requirements.
-* **Action Items:**
-  1. Ensure `Core:OnGroupRosterUpdated()` calls `Core:UpdateUI()` immediately upon any member count reduction.
-  2. Verify that leavers release their reserved utility flags and role slots instantly.
-  3. Trigger queue re-evaluation without requiring manual intervention.
+* **Changes Made:**
+  1. Added member count change detection (`lastMemberCount`) in `Core:OnGroupRosterUpdated()`.
+  2. If member count decreases, logs warning and immediately triggers `Core:UpdateUI()` to recalculate open slots, `BL [Need/Ready]`, and `CR [Need/Ready]`.
+  3. Automatically triggers `Core:EvaluateQueue()` whenever member count is below 5 in active states (`LISTED` or `ASSEMBLING`), ensuring the queue selects a new FIFO applicant satisfying newly missing utility.
+  4. Automatically transitions from `FULL` back to `ASSEMBLING` if a member leaves a full group before starting.
 
 ---
 

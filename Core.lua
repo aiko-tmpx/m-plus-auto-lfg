@@ -98,6 +98,7 @@ local stopwatchStartTime = nil
 local stopwatchElapsed = 0
 local isStopwatchRunning = false
 local currentTopCandidate = nil
+local lastMemberCount = 1
 
 -------------------------------------------------------------------------------
 -- FSM State Manager
@@ -388,6 +389,19 @@ function Core:OnGroupRosterUpdated()
         end
     end
 
+    -- Member leaver detection & state adaptation
+    if lastMemberCount and memberCount < lastMemberCount then
+        Logger:Warn("RESILIENCE", format("Group roster decreased from %d to %d members! Re-evaluating requirements and queue...", lastMemberCount, memberCount))
+        if ns.CurrentState == ns.States.FULL then
+            self:SetState(ns.States.ASSEMBLING, "Roster slot freed from leaver")
+        elseif memberCount == 1 and not next(pendingInvites) then
+            if ns.CurrentState == ns.States.ASSEMBLING then
+                self:SetState(ns.States.LISTED, "Roster reduced to solo leader")
+            end
+        end
+    end
+    lastMemberCount = memberCount
+
     -- Full party reached: 5 members in group
     if memberCount >= ns.MAX_PARTY_SIZE then
         if ns.CurrentState ~= ns.States.FULL then
@@ -405,16 +419,17 @@ function Core:OnGroupRosterUpdated()
 
             Logger:Info("LIFECYCLE", format("Group fully assembled in %02d:%02d! Composition: %s", mins, secs, table.concat(names, ", ")))
         end
-    elseif memberCount < ns.MAX_PARTY_SIZE and ns.CurrentState == ns.States.FULL then
-        -- A member left a full group before dungeon started: Resume assembly!
-        Logger:Warn("RESILIENCE", "Party member left full group! Returning to ASSEMBLING and resuming queue evaluation.")
-        self:SetState(ns.States.ASSEMBLING, "Roster slot freed from leaver")
-        self:EvaluateQueue()
     elseif ns.CurrentState == ns.States.LISTED and memberCount > 1 then
         self:SetState(ns.States.ASSEMBLING, "Group assembling")
     end
 
+    -- Immediately refresh UI for updated utilities (BL/CR) and open slot counts
     Core:UpdateUI()
+
+    -- Automatically re-evaluate queue whenever in active matchmaking and not full
+    if memberCount < ns.MAX_PARTY_SIZE and (ns.CurrentState == ns.States.LISTED or ns.CurrentState == ns.States.ASSEMBLING) then
+        self:EvaluateQueue()
+    end
 end
 
 -------------------------------------------------------------------------------
