@@ -272,16 +272,28 @@ function LFGService:SetDefaultListingPlaystyle()
 
     local playstyleText = _G["GROUP_FINDER_GENERAL_PLAYSTYLE2"] or "Relaxed"
 
-    -- 1. Set internal state variables on EntryCreation frame (both general and legacy)
+    -- 1. Ensure activity and group are populated from keystone if not yet assigned
+    if (not frame.selectedActivity or not frame.selectedGroup) and C_LFGList and C_LFGList.GetOwnedKeystoneActivityAndGroupAndLevel then
+        local actID, grpID = C_LFGList.GetOwnedKeystoneActivityAndGroupAndLevel()
+        if not actID then
+            actID, grpID = C_LFGList.GetOwnedKeystoneActivityAndGroupAndLevel(true)
+        end
+        if actID and grpID then
+            frame.selectedActivity = actID
+            frame.selectedGroup = grpID
+        end
+    end
+
+    -- 2. Set internal state variables on EntryCreation frame (both general and legacy)
     frame.generalPlaystyle = generalPlaystyle
     frame.selectedPlaystyle = legacyPlaystyle
 
-    -- 2. Call Blizzard internal handler if available (updates prebuilt title and validity state)
+    -- 3. Call Blizzard internal handler (updates prebuilt title and validity state)
     if LFGListEntryCreation_OnPlayStyleSelectedInternal then
         pcall(LFGListEntryCreation_OnPlayStyleSelectedInternal, frame, generalPlaystyle)
     end
 
-    -- 3. Target the dropdown widget and update its state / text
+    -- 4. Target the dropdown widget and update its state / text
     local dropdown = frame.PlayStyleDropdown or frame.PlaystyleDropdown or frame.playStyleDropdown
     if dropdown then
         dropdown.selectedPlaystyle = generalPlaystyle
@@ -312,16 +324,40 @@ function LFGService:SetDefaultListingPlaystyle()
         end
     end
 
-    -- 4. Pre-fill title if empty and keystone exists
+    -- 5. Pre-fill title
+    -- In Retail WoW, Mythic+ titles are locked to prebuilt titles (+level Dungeon) via Blizzard's
+    -- C_LFGList.SetEntryTitle API (securityDisableSetText="true" prevents arbitrary custom title injection).
     local _, kLevel, dungeonName = self:GetOwnedKeystoneInfo()
-    if kLevel and kLevel > 0 and frame.Name and frame.Name.GetText and frame.Name:GetText() == "" then
-        local defaultTitle = format(ns.DefaultConfig.listingTitleTemplate, kLevel)
-        if frame.Name.SetText then
-            pcall(frame.Name.SetText, frame.Name, defaultTitle)
+    local customTitle = (kLevel and kLevel > 0) and format(ns.DefaultConfig.listingTitleTemplate, kLevel)
+    local titleApplied = false
+
+    if customTitle and frame.Name and frame.Name.SetText then
+        pcall(frame.Name.SetText, frame.Name, customTitle)
+        if frame.Name.GetText and frame.Name:GetText() == customTitle then
+            titleApplied = true
         end
     end
 
-    -- 5. Pre-fill item level if empty and keystone exists
+    -- If custom title was blocked by securityDisableSetText or field is empty, ensure native keystone title is set
+    if not titleApplied then
+        if LFGListEntryCreation_SetTitleFromActivityInfo then
+            pcall(LFGListEntryCreation_SetTitleFromActivityInfo, frame)
+        elseif C_LFGList and C_LFGList.SetEntryTitle and frame.selectedActivity and frame.selectedGroup then
+            pcall(C_LFGList.SetEntryTitle, frame.selectedActivity, frame.selectedGroup, frame.selectedPlaystyle, frame.generalPlaystyle)
+        end
+    end
+
+    -- 6. Pre-fill description / details if edit box is accessible
+    local descText = ns.DefaultConfig.listingDescTemplate
+    local descBox = frame.Description and (frame.Description.EditBox or frame.Description)
+    if descBox and descBox.SetText and descText and descText ~= "" then
+        pcall(descBox.SetText, descBox, descText)
+        if InputScrollFrame_OnTextChanged then
+            pcall(InputScrollFrame_OnTextChanged, descBox, true)
+        end
+    end
+
+    -- 7. Pre-fill item level if empty and keystone exists
     if kLevel and kLevel > 0 and frame.ItemLevel and frame.ItemLevel.EditBox then
         local currentIlvl = tonumber(frame.ItemLevel.EditBox:GetText()) or 0
         if currentIlvl <= 0 then
@@ -331,7 +367,7 @@ function LFGService:SetDefaultListingPlaystyle()
         end
     end
 
-    -- 6. Trigger Blizzard's entry validation so the List Group button refreshes
+    -- 8. Trigger Blizzard's entry validation so the List Group button refreshes
     if LFGListEntryCreation_UpdateValidState then
         pcall(LFGListEntryCreation_UpdateValidState, frame)
     end
