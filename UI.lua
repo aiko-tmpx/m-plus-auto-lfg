@@ -1,8 +1,9 @@
 --[[
     MPlusAutoLFG - Matchmaking Assistant for Mythic+
     File: UI.lua
-    Description: 100% Native WoW UI implementation. Floating HUD, party status badges,
-                 candidate showcase card, SecureActionButtonTemplate invite button, and native minimap button.
+    Description: Authentic Blizzard-native UI styling using BasicFrameTemplateWithInset,
+                 InsetFrameTemplate, and UIPanelButtonTemplate. Zero custom flat/vibe-coded styling.
+                 Group composition is omitted as party unit frames provide this natively.
 ]]
 
 local addonName, ns = ...
@@ -23,36 +24,16 @@ local minimapButton = nil
 local currentCandidate = nil
 
 -------------------------------------------------------------------------------
--- Native Backdrop Helper (Retail BackdropTemplate Safe)
--------------------------------------------------------------------------------
-local TOOLTIP_BACKDROP = {
-    bgFile = "Interface\\Buttons\\WHITE8X8",
-    edgeFile = "Interface\\Tooltips\\UI-Tooltip-Border",
-    tile = false,
-    tileSize = 16,
-    edgeSize = 14,
-    insets = { left = 3, right = 3, top = 3, bottom = 3 }
-}
-
-local CARD_BACKDROP = {
-    bgFile = "Interface\\Buttons\\WHITE8X8",
-    edgeFile = "Interface\\Tooltips\\UI-Tooltip-Border",
-    tile = false,
-    tileSize = 16,
-    edgeSize = 12,
-    insets = { left = 2, right = 2, top = 2, bottom = 2 }
-}
-
--------------------------------------------------------------------------------
--- Main Floating HUD Frame Creation
+-- Main Blizzard-Like Frame Creation
 -------------------------------------------------------------------------------
 function UI:CreateMainHUD()
     if mainFrame then return mainFrame end
 
-    local f = CreateFrame("Frame", "MPlusAutoLFGMainFrame", UIParent, "BackdropTemplate")
+    -- Use native Blizzard BasicFrameTemplateWithInset for authentic look & feel
+    local f = CreateFrame("Frame", "MPlusAutoLFGMainFrame", UIParent, "BasicFrameTemplateWithInset")
     mainFrame = f
-    f:SetSize(360, 340)
-    f:SetFrameStrata("MEDIUM")
+    f:SetSize(340, 310)
+    f:SetFrameStrata("DIALOG")
     f:SetToplevel(true)
     f:SetClampedToScreen(true)
     f:SetMovable(true)
@@ -74,183 +55,136 @@ function UI:CreateMainHUD()
         end
     end)
 
-    -- Native Backdrop Styling
-    f:SetBackdrop(TOOLTIP_BACKDROP)
-    f:SetBackdropColor(0.06, 0.08, 0.12, 0.94)
-    f:SetBackdropBorderColor(0.35, 0.40, 0.50, 0.8)
+    -- Window Title (native Blizzard TitleText from template)
+    if f.TitleText then
+        f.TitleText:SetText("Mythic+ Auto Matchmaker")
+        f.TitleText:SetTextColor(1, 0.82, 0)
+    end
 
     ---------------------------------------------------------------------------
-    -- Top Title / Drag Bar
+    -- Top Section: Keystone Information, Matchmaking Status & Stopwatch
     ---------------------------------------------------------------------------
-    local titleBar = CreateFrame("Frame", nil, f)
-    titleBar:SetPoint("TOPLEFT", f, "TOPLEFT", 6, -6)
-    titleBar:SetPoint("TOPRIGHT", f, "TOPRIGHT", -6, -6)
-    titleBar:SetHeight(26)
+    local infoContainer = CreateFrame("Frame", nil, f)
+    infoContainer:SetPoint("TOPLEFT", f, "TOPLEFT", 14, -28)
+    infoContainer:SetPoint("TOPRIGHT", f, "TOPRIGHT", -14, -28)
+    infoContainer:SetHeight(76)
+    f.infoContainer = infoContainer
 
-    local titleText = titleBar:CreateFontString(nil, "OVERLAY", "GameFontNormalMed2")
-    titleText:SetPoint("LEFT", titleBar, "LEFT", 6, 0)
-    titleText:SetText("|cff00b4ffMPlusAutoLFG|r")
-
-    local closeBtn = CreateFrame("Button", nil, titleBar, "UIPanelCloseButton")
-    closeBtn:SetPoint("RIGHT", titleBar, "RIGHT", 4, 0)
-    closeBtn:SetSize(24, 24)
-    closeBtn:SetScript("OnClick", function()
-        f:Hide()
-    end)
-
-    ---------------------------------------------------------------------------
-    -- Keystone Info & Stopwatch Header
-    ---------------------------------------------------------------------------
-    local headerFrame = CreateFrame("Frame", nil, f, "BackdropTemplate")
-    headerFrame:SetPoint("TOPLEFT", titleBar, "BOTTOMLEFT", 4, -4)
-    headerFrame:SetPoint("TOPRIGHT", titleBar, "BOTTOMRIGHT", -4, -4)
-    headerFrame:SetHeight(54)
-    headerFrame:SetBackdrop(CARD_BACKDROP)
-    headerFrame:SetBackdropColor(0.04, 0.05, 0.07, 0.8)
-    headerFrame:SetBackdropBorderColor(0.2, 0.25, 0.35, 0.6)
-    f.headerFrame = headerFrame
-
-    -- Keystone Icon
-    local keyIcon = headerFrame:CreateTexture(nil, "ARTWORK")
-    keyIcon:SetSize(38, 38)
-    keyIcon:SetPoint("LEFT", headerFrame, "LEFT", 8, 0)
+    -- Keystone Icon with standard Blizzard border
+    local keyIcon = infoContainer:CreateTexture(nil, "ARTWORK")
+    keyIcon:SetSize(36, 36)
+    keyIcon:SetPoint("TOPLEFT", infoContainer, "TOPLEFT", 4, -4)
     keyIcon:SetTexture(525134) -- Default keystone icon
     f.keyIcon = keyIcon
 
-    -- Dungeon Title & Key Level
-    local dungeonText = headerFrame:CreateFontString(nil, "OVERLAY", "GameFontNormal")
-    dungeonText:SetPoint("TOPLEFT", keyIcon, "TOPRIGHT", 10, -2)
-    dungeonText:SetText("No Keystone Detected")
+    -- Dungeon Name & Key Level
+    local dungeonText = infoContainer:CreateFontString(nil, "OVERLAY", "GameFontNormalLarge")
+    dungeonText:SetPoint("TOPLEFT", keyIcon, "TOPRIGHT", 10, 0)
+    dungeonText:SetText("No Keystone Found")
     f.dungeonText = dungeonText
 
-    -- Status Badge / FSM State
-    local statusText = headerFrame:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
-    statusText:SetPoint("BOTTOMLEFT", keyIcon, "BOTTOMRIGHT", 10, 4)
-    statusText:SetText("|cff888888State: IDLE|r")
+    -- Required Item Level
+    local ilvlText = infoContainer:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+    ilvlText:SetPoint("TOPLEFT", dungeonText, "BOTTOMLEFT", 0, -2)
+    ilvlText:SetText("Required ilvl: --")
+    f.ilvlText = ilvlText
+
+    -- Matchmaking State & Stopwatch row
+    local statusText = infoContainer:CreateFontString(nil, "OVERLAY", "GameFontHighlight")
+    statusText:SetPoint("TOPLEFT", keyIcon, "BOTTOMLEFT", 0, -8)
+    statusText:SetText("Status: |cff888888IDLE|r")
     f.statusText = statusText
 
-    -- Elapsed Stopwatch Timer
-    local timerText = headerFrame:CreateFontString(nil, "OVERLAY", "GameFontNormalLarge")
-    timerText:SetPoint("RIGHT", headerFrame, "RIGHT", -12, 0)
+    local timerText = infoContainer:CreateFontString(nil, "OVERLAY", "GameFontNormal")
+    timerText:SetPoint("TOPRIGHT", infoContainer, "TOPRIGHT", -4, -4)
     timerText:SetText("00:00")
-    timerText:SetTextColor(0.9, 0.9, 0.9, 1)
     f.timerText = timerText
 
-    ---------------------------------------------------------------------------
-    -- Party Status & Utility Badges
-    ---------------------------------------------------------------------------
-    local rosterFrame = CreateFrame("Frame", nil, f)
-    rosterFrame:SetPoint("TOPLEFT", headerFrame, "BOTTOMLEFT", 0, -8)
-    rosterFrame:SetPoint("TOPRIGHT", headerFrame, "BOTTOMRIGHT", 0, -8)
-    rosterFrame:SetHeight(52)
-    f.rosterFrame = rosterFrame
-
-    -- 5 Role Badges: Tank, Healer, DPS1, DPS2, DPS3
-    f.roleBadges = {}
-    local badgeLabels = { "T", "H", "DPS", "DPS", "DPS" }
-    local badgeRoles = { "TANK", "HEALER", "DAMAGER", "DAMAGER", "DAMAGER" }
-    local badgeWidth = 48
-    local badgeSpacing = 6
-
-    for i = 1, 5 do
-        local badge = CreateFrame("Frame", nil, rosterFrame, "BackdropTemplate")
-        badge:SetSize(badgeWidth, 34)
-        badge:SetPoint("TOPLEFT", rosterFrame, "TOPLEFT", 6 + (i - 1) * (badgeWidth + badgeSpacing), 0)
-        badge:SetBackdrop(CARD_BACKDROP)
-        badge:SetBackdropColor(0.1, 0.12, 0.15, 0.9)
-        badge:SetBackdropBorderColor(0.3, 0.3, 0.3, 0.8)
-
-        local roleLbl = badge:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
-        roleLbl:SetPoint("TOP", badge, "TOP", 0, -4)
-        roleLbl:SetText(badgeLabels[i])
-
-        local nameLbl = badge:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
-        nameLbl:SetPoint("BOTTOM", badge, "BOTTOM", 0, 4)
-        nameLbl:SetText("Empty")
-        nameLbl:SetWidth(44)
-        nameLbl:SetWordWrap(false)
-
-        badge.roleLbl = roleLbl
-        badge.nameLbl = nameLbl
-        badge.expectedRole = badgeRoles[i]
-        f.roleBadges[i] = badge
-    end
-
-    -- Utility Badges: BL & CR indicators
-    local utilFrame = CreateFrame("Frame", nil, rosterFrame)
-    utilFrame:SetPoint("TOPLEFT", rosterFrame, "BOTTOMLEFT", 6, 2)
-    utilFrame:SetPoint("TOPRIGHT", rosterFrame, "BOTTOMRIGHT", -6, 2)
-    utilFrame:SetHeight(18)
-
-    local blStatus = utilFrame:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
-    blStatus:SetPoint("LEFT", utilFrame, "LEFT", 10, 0)
-    blStatus:SetText("BL: |cffff4444[NEED]|r")
-    f.blStatus = blStatus
-
-    local crStatus = utilFrame:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
-    crStatus:SetPoint("RIGHT", utilFrame, "RIGHT", -10, 0)
-    crStatus:SetText("CR: |cffff4444[NEED]|r")
-    f.crStatus = crStatus
+    -- Missing Utility Summary Row
+    local utilText = infoContainer:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+    utilText:SetPoint("TOPLEFT", statusText, "BOTTOMLEFT", 0, -3)
+    utilText:SetText("Utilities: BL |cffff4444[Need]|r  •  CR |cffff4444[Need]|r")
+    f.utilText = utilText
 
     ---------------------------------------------------------------------------
-    -- Candidate Showcase Card
+    -- Middle Section: Next FIFO Applicant (Blizzard InsetFrameTemplate)
     ---------------------------------------------------------------------------
-    local card = CreateFrame("Frame", nil, f, "BackdropTemplate")
-    card:SetPoint("TOPLEFT", rosterFrame, "BOTTOMLEFT", 4, -20)
-    card:SetPoint("TOPRIGHT", rosterFrame, "BOTTOMRIGHT", -4, -20)
-    card:SetHeight(82)
-    card:SetBackdrop(CARD_BACKDROP)
-    card:SetBackdropColor(0.04, 0.05, 0.07, 0.85)
-    card:SetBackdropBorderColor(0.25, 0.3, 0.4, 0.7)
-    f.candidateCard = card
+    local candBox = CreateFrame("Frame", nil, f, "InsetFrameTemplate")
+    candBox:SetPoint("TOPLEFT", infoContainer, "BOTTOMLEFT", 0, -6)
+    candBox:SetPoint("TOPRIGHT", infoContainer, "BOTTOMRIGHT", 0, -6)
+    candBox:SetHeight(102)
+    f.candBox = candBox
 
-    local cardHeader = card:CreateFontString(nil, "OVERLAY", "GameFontDisableSmall")
-    cardHeader:SetPoint("TOPLEFT", card, "TOPLEFT", 10, -6)
-    cardHeader:SetText("NEXT QUALIFIED FIFO APPLICANT")
+    local boxHeader = candBox:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
+    boxHeader:SetPoint("TOPLEFT", candBox, "TOPLEFT", 10, -8)
+    boxHeader:SetText("NEXT QUALIFIED FIFO APPLICANT")
 
-    local candName = card:CreateFontString(nil, "OVERLAY", "GameFontNormalLarge")
-    candName:SetPoint("TOPLEFT", cardHeader, "BOTTOMLEFT", 0, -4)
+    local candName = candBox:CreateFontString(nil, "OVERLAY", "GameFontNormalLarge")
+    candName:SetPoint("TOPLEFT", boxHeader, "BOTTOMLEFT", 0, -4)
     candName:SetText("|cff888888Queue is empty|r")
     f.candName = candName
 
-    local candSpec = card:CreateFontString(nil, "OVERLAY", "GameFontHighlight")
-    candSpec:SetPoint("LEFT", candName, "RIGHT", 8, 0)
+    local candSpec = candBox:CreateFontString(nil, "OVERLAY", "GameFontHighlight")
+    candSpec:SetPoint("LEFT", candName, "RIGHT", 6, 0)
     candSpec:SetText("")
     f.candSpec = candSpec
 
-    local candMetrics = card:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+    local candMetrics = candBox:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
     candMetrics:SetPoint("TOPLEFT", candName, "BOTTOMLEFT", 0, -4)
-    candMetrics:SetText("Waiting for matching applicants to enter queue...")
+    candMetrics:SetText("Waiting for qualifying candidates in queue...")
     f.candMetrics = candMetrics
 
-    local candExp = card:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+    local candExp = candBox:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
     candExp:SetPoint("TOPLEFT", candMetrics, "BOTTOMLEFT", 0, -3)
     candExp:SetText("")
     f.candExp = candExp
 
     ---------------------------------------------------------------------------
-    -- Action Element: SecureActionButtonTemplate "CLICK TO INVITE" Button
+    -- Bottom Section: Default Blizzard Action Buttons (UIPanelButtonTemplate)
     ---------------------------------------------------------------------------
-    -- Must inherit SecureActionButtonTemplate to comply with Blizzard hardware event requirements
-    local inviteBtn = CreateFrame("Button", "MPlusAutoLFGInviteButton", f, "SecureActionButtonTemplate, BackdropTemplate")
+    -- Primary Invite Button using native UIPanelButtonTemplate & SecureActionButtonTemplate
+    local inviteBtn = CreateFrame("Button", "MPlusAutoLFGInviteButton", f, "SecureActionButtonTemplate, UIPanelButtonTemplate")
     f.inviteBtn = inviteBtn
-    inviteBtn:SetSize(260, 36)
-    inviteBtn:SetPoint("BOTTOM", f, "BOTTOM", 0, 14)
-    inviteBtn:SetBackdrop(CARD_BACKDROP)
-    inviteBtn:SetBackdropColor(0.12, 0.14, 0.18, 0.95)
-    inviteBtn:SetBackdropBorderColor(0.4, 0.45, 0.55, 0.9)
+    inviteBtn:SetSize(312, 30)
+    inviteBtn:SetPoint("TOP", candBox, "BOTTOM", 0, -8)
+    inviteBtn:SetText("CLICK TO INVITE")
 
-    -- Mouse-click only (no spacebar/keybind overrides)
+    -- Mouse-click only (no spacebar or keybind exploits)
     inviteBtn:RegisterForClicks("LeftButtonUp")
-
-    local btnText = inviteBtn:CreateFontString(nil, "OVERLAY", "GameFontNormalMed2")
-    btnText:SetPoint("CENTER", inviteBtn, "CENTER", 0, 0)
-    btnText:SetText("AWAITING CANDIDATE")
-    inviteBtn.btnText = btnText
 
     inviteBtn:SetScript("OnClick", function(self)
         if currentCandidate and currentCandidate.applicantID then
             UI:OnInviteClicked(currentCandidate)
+        end
+    end)
+    inviteBtn:Disable()
+
+    -- Secondary Control Buttons Row: [Start / Delist Queue] and [Pause / Resume]
+    local startBtn = CreateFrame("Button", nil, f, "UIPanelButtonTemplate")
+    startBtn:SetSize(152, 24)
+    startBtn:SetPoint("BOTTOMLEFT", f, "BOTTOMLEFT", 14, 12)
+    startBtn:SetText("Start Queue")
+    f.startBtn = startBtn
+
+    startBtn:SetScript("OnClick", function()
+        if ns.Core then
+            if ns.LFGService:HasActiveListing() or ns.CurrentState == ns.States.LISTED or ns.CurrentState == ns.States.ASSEMBLING then
+                ns.Core:StopMatchmaking()
+            else
+                ns.Core:StartMatchmaking()
+            end
+        end
+    end)
+
+    local pauseBtn = CreateFrame("Button", nil, f, "UIPanelButtonTemplate")
+    pauseBtn:SetSize(152, 24)
+    pauseBtn:SetPoint("BOTTOMRIGHT", f, "BOTTOMRIGHT", -14, 12)
+    pauseBtn:SetText("Pause Queue")
+    f.pauseBtn = pauseBtn
+
+    pauseBtn:SetScript("OnClick", function()
+        if ns.TogglePause then
+            ns.TogglePause()
         end
     end)
 
@@ -267,12 +201,11 @@ function UI:OnInviteClicked(candidate)
     if not candidate or not candidate.applicantID then return end
 
     if ns.Logger then
-        ns.Logger:Info("INVITE", format("Dispatching automated invite to candidate '%s' (ID %d)...", candidate.name, candidate.applicantID))
+        ns.Logger:Info("INVITE", format("Dispatching automated invite to '%s' (ID %d)...", candidate.name, candidate.applicantID))
     end
 
     local success = ns.LFGService:InviteApplicant(candidate.applicantID)
     if success then
-        -- Notify core that candidate was invited
         if ns.OnCandidateInvited then
             ns.OnCandidateInvited(candidate)
         end
@@ -284,24 +217,31 @@ function UI:OnInviteClicked(candidate)
     end
 end
 
----Update keystone header information, state badge, and stopwatch
+---Update keystone header information, state badge, stopwatch, and controls
 ---@param challengeMapID number
 ---@param keyLevel number
 ---@param dungeonName string
 ---@param iconTexture number|string
 ---@param state string
 ---@param elapsedSeconds number
-function UI:UpdateHeader(challengeMapID, keyLevel, dungeonName, iconTexture, state, elapsedSeconds)
+---@param requiredIlvl number
+function UI:UpdateHeader(challengeMapID, keyLevel, dungeonName, iconTexture, state, elapsedSeconds, requiredIlvl)
     if not mainFrame then self:CreateMainHUD() end
 
     if dungeonName and dungeonName ~= "" then
         mainFrame.dungeonText:SetText(format("%s +%d", dungeonName, keyLevel or 0))
     else
-        mainFrame.dungeonText:SetText("No Keystone")
+        mainFrame.dungeonText:SetText("No Keystone Found")
     end
 
     if iconTexture then
         mainFrame.keyIcon:SetTexture(iconTexture)
+    end
+
+    if requiredIlvl and requiredIlvl > 0 then
+        mainFrame.ilvlText:SetText(format("Required ilvl: |cffffffff%d|r", requiredIlvl))
+    else
+        mainFrame.ilvlText:SetText("Required ilvl: --")
     end
 
     -- Format stopwatch
@@ -310,104 +250,46 @@ function UI:UpdateHeader(challengeMapID, keyLevel, dungeonName, iconTexture, sta
     local secs = elapsedSeconds % 60
     mainFrame.timerText:SetText(format("%02d:%02d", mins, secs))
 
-    -- Format state badge
-    local stateColor = "|cff888888"
+    -- Format state badge with Blizzard font colors
+    local stateFormatted = "|cff888888IDLE|r"
     if state == ns.States.LISTED then
-        stateColor = "|cff00ff00"
+        stateFormatted = "|cff00ff00LISTED (Scanning)|r"
     elseif state == ns.States.ASSEMBLING then
-        stateColor = "|cffffff00"
+        stateFormatted = "|cffffff00ASSEMBLING|r"
     elseif state == ns.States.FULL then
-        stateColor = "|cff00b4ff"
+        stateFormatted = "|cff00b4ffGROUP FULL|r"
     elseif state == ns.States.PAUSED then
-        stateColor = "|cffff8800"
+        stateFormatted = "|cffff8800PAUSED|r"
     end
-    mainFrame.statusText:SetText(format("State: %s[%s]|r", stateColor, state or "IDLE"))
+    mainFrame.statusText:SetText(format("Status: %s", stateFormatted))
+
+    -- Update Start / Delist button label
+    if ns.LFGService:HasActiveListing() or state == ns.States.LISTED or state == ns.States.ASSEMBLING then
+        mainFrame.startBtn:SetText("Delist Group")
+    else
+        mainFrame.startBtn:SetText("Start Queue")
+    end
+
+    -- Update Pause / Resume button label
+    if state == ns.States.PAUSED then
+        mainFrame.pauseBtn:SetText("Resume Queue")
+    else
+        mainFrame.pauseBtn:SetText("Pause Queue")
+    end
 end
 
----Update Party Status Badges and Utility Status
+---Update Utility Requirement Status (Group composition display is intentionally omitted)
 ---@param rosterContext table
----@param pendingInvites table
-function UI:UpdateRoster(rosterContext, pendingInvites)
+function UI:UpdateUtilityStatus(rosterContext)
     if not mainFrame then self:CreateMainHUD() end
 
-    local members = rosterContext.members or {}
-    local pending = pendingInvites or {}
+    local blStr = rosterContext.hasBL and "|cff00ff00[Ready]|r" or "|cffff4444[Need]|r"
+    local crStr = rosterContext.hasCR and "|cff00ff00[Ready]|r" or "|cffff4444[Need]|r"
 
-    -- Group roles: 1 Tank, 1 Healer, 3 DPS
-    -- Fill badges sequentially matching role types
-    local tanks = {}
-    local healers = {}
-    local dps = {}
+    local openSlots = max(0, ns.MAX_PARTY_SIZE - (rosterContext.totalCount or 0))
+    local slotStr = format("(%d open)", openSlots)
 
-    -- Collect joined members
-    for _, m in ipairs(members) do
-        if m.role == "TANK" then
-            tinsert(tanks, { name = m.name, class = m.class, state = "FILLED" })
-        elseif m.role == "HEALER" then
-            tinsert(healers, { name = m.name, class = m.class, state = "FILLED" })
-        else
-            tinsert(dps, { name = m.name, class = m.class, state = "FILLED" })
-        end
-    end
-
-    -- Collect pending invited candidates
-    for _, p in pairs(pending) do
-        if p.role == "TANK" then
-            tinsert(tanks, { name = p.name, class = p.classFilename, state = "PENDING" })
-        elseif p.role == "HEALER" then
-            tinsert(healers, { name = p.name, class = p.classFilename, state = "PENDING" })
-        else
-            tinsert(dps, { name = p.name, class = p.classFilename, state = "PENDING" })
-        end
-    end
-
-    -- Map to the 5 role badges
-    local slots = {
-        tanks[1],
-        healers[1],
-        dps[1],
-        dps[2],
-        dps[3],
-    }
-
-    for i = 1, 5 do
-        local badge = mainFrame.roleBadges[i]
-        local slotData = slots[i]
-
-        if slotData then
-            local r, g, b = ns.GetClassColor(slotData.class)
-            if slotData.state == "FILLED" then
-                badge:SetBackdropColor(r * 0.25, g * 0.25, b * 0.25, 0.9)
-                badge:SetBackdropBorderColor(r, g, b, 1)
-                badge.nameLbl:SetText(slotData.name)
-                badge.nameLbl:SetTextColor(r, g, b, 1)
-            else -- PENDING
-                badge:SetBackdropColor(0.25, 0.2, 0.05, 0.9)
-                badge:SetBackdropBorderColor(1.0, 0.75, 0.1, 0.9)
-                badge.nameLbl:SetText("Invited")
-                badge.nameLbl:SetTextColor(1.0, 0.8, 0.2, 1)
-            end
-        else
-            -- Empty slot
-            badge:SetBackdropColor(0.08, 0.1, 0.12, 0.8)
-            badge:SetBackdropBorderColor(0.25, 0.25, 0.25, 0.6)
-            badge.nameLbl:SetText("Open")
-            badge.nameLbl:SetTextColor(0.5, 0.5, 0.5, 1)
-        end
-    end
-
-    -- Update Utility Indicators
-    if rosterContext.hasBL then
-        mainFrame.blStatus:SetText("BL: |cff00ff00[READY]|r")
-    else
-        mainFrame.blStatus:SetText("BL: |cffff4444[NEED]|r")
-    end
-
-    if rosterContext.hasCR then
-        mainFrame.crStatus:SetText("CR: |cff00ff00[READY]|r")
-    else
-        mainFrame.crStatus:SetText("CR: |cffff4444[NEED]|r")
-    end
+    mainFrame.utilText:SetText(format("Utilities %s: BL %s  •  CR %s", slotStr, blStr, crStr))
 end
 
 ---Display top FIFO candidate in Showcase Card and activate Invite Button
@@ -428,20 +310,15 @@ function UI:UpdateCandidateCard(candidate)
 
     local specInfo = ns.GetSpecInfo(candidate.specID)
     local specName = specInfo and specInfo.name or candidate.role
-    mainFrame.candSpec:SetText(format("(%s %s)", specName, candidate.localizedClass or candidate.classFilename))
+    mainFrame.candSpec:SetText(format("(%s %s - %s)", specName, candidate.localizedClass or candidate.classFilename, candidate.role))
 
-    mainFrame.candMetrics:SetText(format("Item Level: |cffffffff%d|r   |   M+ Score: |cffffffff%d|r", candidate.itemLevel or 0, candidate.dungeonScore or 0))
+    mainFrame.candMetrics:SetText(format("Item Level: |cffffffff%d|r   |   M+ Rating: |cffffffff%d|r", candidate.itemLevel or 0, candidate.dungeonScore or 0))
 
     local timedText = candidate.bestRunFinishedSuccess and "|cff00ff00Timed|r" or "|cffff4444Overtime|r"
-    mainFrame.candExp:SetText(format("Best Run for Dungeon: |cffffffff+%d|r (%s)", candidate.bestRunLevel or 0, timedText))
+    mainFrame.candExp:SetText(format("Best Run: |cffffffff+%d|r (%s)", candidate.bestRunLevel or 0, timedText))
 
-    -- Highlight card border
-    mainFrame.candidateCard:SetBackdropBorderColor(0.0, 0.8, 1.0, 0.9)
-
-    -- Activate Prominent "CLICK TO INVITE" Button
-    mainFrame.inviteBtn:SetBackdropColor(0.08, 0.35, 0.15, 0.95)
-    mainFrame.inviteBtn:SetBackdropBorderColor(0.2, 0.9, 0.3, 1)
-    mainFrame.inviteBtn.btnText:SetText("|cffffffffCLICK TO INVITE|r")
+    -- Enable Blizzard default invite button
+    mainFrame.inviteBtn:SetText(format("CLICK TO INVITE: %s", candidate.name))
     mainFrame.inviteBtn:Enable()
 end
 
@@ -450,21 +327,17 @@ function UI:ClearCandidateCard()
     if not mainFrame then return end
     currentCandidate = nil
 
-    mainFrame.candName:SetText("|cff777777Queue scanning...|r")
+    mainFrame.candName:SetText("|cff777777Queue searching...|r")
     mainFrame.candSpec:SetText("")
     mainFrame.candMetrics:SetText("No qualifying applicants currently in queue.")
     mainFrame.candExp:SetText("")
-    mainFrame.candidateCard:SetBackdropBorderColor(0.25, 0.3, 0.4, 0.7)
 
-    -- Dim the invite button
-    mainFrame.inviteBtn:SetBackdropColor(0.12, 0.14, 0.18, 0.9)
-    mainFrame.inviteBtn:SetBackdropBorderColor(0.3, 0.35, 0.4, 0.6)
-    mainFrame.inviteBtn.btnText:SetText("|cff777777AWAITING APPLICANTS|r")
+    mainFrame.inviteBtn:SetText("CLICK TO INVITE")
     mainFrame.inviteBtn:Disable()
 end
 
 -------------------------------------------------------------------------------
--- Native Minimap Button
+-- Native Minimap Button (Standard Blizzard Round Border)
 -------------------------------------------------------------------------------
 function UI:CreateMinimapButton()
     if minimapButton then return minimapButton end
@@ -533,11 +406,11 @@ function UI:CreateMinimapButton()
 
     btn:SetScript("OnEnter", function(self)
         GameTooltip:SetOwner(self, "ANCHOR_LEFT")
-        GameTooltip:AddLine("|cff00b4ffMPlusAutoLFG|r", 1, 1, 1)
+        GameTooltip:AddLine("MPlusAutoLFG", 1, 0.82, 0)
         local state = ns.CurrentState or "IDLE"
         GameTooltip:AddLine(format("Current State: |cffffffff%s|r", state), 0.8, 0.8, 0.8)
         GameTooltip:AddLine(" ")
-        GameTooltip:AddLine("|cff00ff00Left-Click:|r Toggle HUD", 0.7, 0.7, 0.7)
+        GameTooltip:AddLine("|cff00ff00Left-Click:|r Toggle Matchmaker Panel", 0.7, 0.7, 0.7)
         GameTooltip:AddLine("|cff00ff00Right-Click:|r Pause / Resume queue", 0.7, 0.7, 0.7)
         GameTooltip:Show()
     end)

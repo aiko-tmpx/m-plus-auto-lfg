@@ -454,6 +454,17 @@ function Core:StartMatchmaking()
     end
 end
 
+---Stop active matchmaking listing and reset queue state
+function Core:StopMatchmaking()
+    ns.LFGService:RemoveListing()
+    self:StopStopwatch()
+    wipe(pendingInvites)
+    self:SetState(ns.States.IDLE, "Listing removed by user")
+    ns.UI:ClearCandidateCard()
+    self:UpdateUI()
+    Logger:Info("LISTING", "Group delisted from Premade Groups.")
+end
+
 ---Pause or resume automated queue evaluation
 function ns.TogglePause()
     if ns.CurrentState == ns.States.PAUSED then
@@ -482,10 +493,11 @@ function Core:UpdateUI()
         activeKeystone.dungeonName,
         activeKeystone.iconTexture,
         ns.CurrentState,
-        elapsed
+        elapsed,
+        rosterContext.requiredItemLevel
     )
 
-    ns.UI:UpdateRoster(rosterContext, pendingInvites)
+    ns.UI:UpdateUtilityStatus(rosterContext)
 end
 
 -------------------------------------------------------------------------------
