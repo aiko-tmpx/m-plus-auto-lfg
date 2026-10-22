@@ -289,6 +289,9 @@ function Core:EvaluateQueue()
         return
     end
 
+    -- Always sync latest keystone and listing state before evaluating queue
+    self:RefreshKeystoneInfo()
+
     -- Guard: If listed in M+, must have a valid parsed key level
     if ns.LFGService:HasActiveListing() and not activeKeystone.isValidKey then
         ns.UI:ClearCandidateCard()
@@ -301,6 +304,10 @@ function Core:EvaluateQueue()
     end
 
     local rosterContext = self:GetRosterContext()
+    if ns.IsDebugMode and ns.IsDebugMode() then
+        Logger:Debug("QUEUE_START", format("EvaluateQueue running: Target Key +%d (Title: '%s', Req Ilvl: %d)",
+            rosterContext.targetKeyLevel, activeKeystone.displayTitle or "", rosterContext.requiredItemLevel or 0))
+    end
     local openSlots = ns.MAX_PARTY_SIZE - rosterContext.totalCount
 
     if openSlots <= 0 then
@@ -578,6 +585,11 @@ function Core:RefreshKeystoneInfo()
         else
             activeKeystone.displayTitle = "No Keystone Found"
         end
+    end
+
+    if ns.IsDebugMode and ns.IsDebugMode() then
+        Logger:Debug("KEYSTONE", format("RefreshKeystone: hasListing=%s, isMPlus=%s, title='%s' -> activeKeyLevel=%d, reqIlvl=%d (bagKey=%d)",
+            tostring(hasListing), tostring(isMPlus), tostring(listTitle or ""), activeKeystone.keystoneLevel or 0, activeKeystone.requiredItemLevel or 0, bagKeyLevel or 0))
     end
 
     -- Clear mismatch state completely (no blocking / disabling)

@@ -416,12 +416,12 @@ end
 ---@return boolean hasListing, number challengeMapID, number keystoneLevel, string dungeonName, number|string iconTexture, boolean isMythicPlus, number activityID, string groupTitle
 function LFGService:GetActiveListingDetails()
     if not self:HasActiveListing() then
-        return false, 0, 0, "", 525134, false, 0, ""
+        return false, 0, 0, "", 525134, false, 0, "", 0
     end
 
     local entryInfo = self:GetActiveListingInfo()
     if not entryInfo then
-        return false, 0, 0, "", 525134, false, 0, ""
+        return false, 0, 0, "", 525134, false, 0, "", 0
     end
 
     local activityID = entryInfo.activityID or 0
@@ -473,12 +473,18 @@ function LFGService:ParseKeyLevelFromTitle(title)
         return 0
     end
 
+    -- Clean markup (colors, hyperlinks, textures, atlas)
+    local clean = title:gsub("|c%x%x%x%x%x%x%x%x", ""):gsub("|r", "")
+    clean = clean:gsub("|H.-|h(.-)|h", "%1")
+    clean = clean:gsub("|T.-|t", "")
+    clean = clean:gsub("|A.-|a", "")
+
     -- 1. Explicit plus numbers: "+12", "+ 12", "12+", "12 +"
     local plusMatches = {}
-    for numStr in title:gmatch("%+%s*(%d+)") do
+    for numStr in clean:gmatch("%+%s*(%d+)") do
         table.insert(plusMatches, tonumber(numStr))
     end
-    for numStr in title:gmatch("(%d+)%s*%+") do
+    for numStr in clean:gmatch("(%d+)%s*%+") do
         table.insert(plusMatches, tonumber(numStr))
     end
 
@@ -496,14 +502,14 @@ function LFGService:ParseKeyLevelFromTitle(title)
         end
 
         -- Check for other contradictory standalone numbers (e.g. "+12 wer 15")
-        for numStr in title:gmatch("%f[%d](%d+)%f[%D]") do
+        for numStr in clean:gmatch("%f[%d](%d+)%f[%D]") do
             local n = tonumber(numStr)
             if n and n ~= firstPlus then
-                local isScoreOrIlvl = title:match(numStr .. "%s*[kK]")
-                    or title:match(numStr .. "%s*[iI][lL]")
-                    or title:match("[iI][lL]%s*" .. numStr)
+                local isScoreOrIlvl = clean:match(numStr .. "%s*[kK]")
+                    or clean:match(numStr .. "%s*[iI][lL]")
+                    or clean:match("[iI][lL]%s*" .. numStr)
                     or (n > 50)
-                local isChest = title:match(numStr .. "%s*[cC][hH][eE][sS][tT]")
+                local isChest = clean:match(numStr .. "%s*[cC][hH][eE][sS][tT]")
                 if not isScoreOrIlvl and not isChest then
                     return 0 -- Contradictory number found
                 end
@@ -515,12 +521,12 @@ function LFGService:ParseKeyLevelFromTitle(title)
 
     -- 2. Standalone numbers without plus (e.g. "12 chill", "Den 12")
     local candidateNumbers = {}
-    for numStr in title:gmatch("%f[%d](%d+)%f[%D]") do
+    for numStr in clean:gmatch("%f[%d](%d+)%f[%D]") do
         local n = tonumber(numStr)
         if n then
-            local isScoreOrIlvl = title:match(numStr .. "%s*[kK]")
-                or title:match(numStr .. "%s*[iI][lL]")
-                or title:match("[iI][lL]%s*" .. numStr)
+            local isScoreOrIlvl = clean:match(numStr .. "%s*[kK]")
+                or clean:match(numStr .. "%s*[iI][lL]")
+                or clean:match("[iI][lL]%s*" .. numStr)
                 or (n > 50)
             if not isScoreOrIlvl then
                 table.insert(candidateNumbers, n)
