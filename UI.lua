@@ -447,6 +447,9 @@ function UI:CreateMainHUD()
         if ns.Core and not ns.Core:IsLeader() then
             return
         end
+        if ns.ActiveKeystone and ns.LFGService and ns.LFGService:HasActiveListing() and not ns.ActiveKeystone.isValidKey then
+            return
+        end
 
         if currentCandidate and currentCandidate.applicantID then
             UI:OnInviteClicked(currentCandidate)
@@ -473,6 +476,9 @@ function UI:OnInviteClicked(candidate)
         return
     end
     if ns.Core and not ns.Core:IsLeader() then
+        return
+    end
+    if ns.ActiveKeystone and ns.LFGService and ns.LFGService:HasActiveListing() and not ns.ActiveKeystone.isValidKey then
         return
     end
 
@@ -538,29 +544,17 @@ end
 -------------------------------------------------------------------------------
 -- Header & Status Updater
 -------------------------------------------------------------------------------
-function UI:UpdateHeader(challengeMapID, keystoneLevel, dungeonName, iconTexture, currentState, elapsed, displayTitle, isMPlusQueue)
+function UI:UpdateHeader(challengeMapID, keystoneLevel, dungeonName, iconTexture, currentState, elapsed, displayTitle, isMPlusQueue, isValidKey)
     if not mainFrame then self:CreateMainHUD() end
     local f = mainFrame
     if not f then return end
 
-    -- Update keystone icon (never desaturated on friend keys)
-    if iconTexture and iconTexture ~= 0 then
-        f.keyIcon:SetTexture(iconTexture)
-    else
-        f.keyIcon:SetTexture(525134)
-    end
-    f.keyIcon:SetDesaturated(false)
-    f.keyIcon:SetAlpha(1.0)
+    -- Always draw standard Mythic Keystone icon (525134) - never use dungeon art
+    f.keyIcon:SetTexture(525134)
 
-    -- Update dungeon title: draw Key + Title of Grp in the addon window
+    -- Draw ONLY title string as requested (e.g. "+45 relaxed", "+2")
     if displayTitle and displayTitle ~= "" then
         f.dungeonText:SetText(displayTitle)
-    elseif dungeonName and dungeonName ~= "" and dungeonName ~= "Unknown Dungeon" then
-        if keystoneLevel and keystoneLevel > 0 then
-            f.dungeonText:SetText(format("%s +%d", dungeonName, keystoneLevel))
-        else
-            f.dungeonText:SetText(dungeonName)
-        end
     else
         f.dungeonText:SetText("No Keystone Found")
     end
@@ -574,55 +568,77 @@ function UI:UpdateHeader(challengeMapID, keystoneLevel, dungeonName, iconTexture
         f.timerText:SetText("00:00")
     end
 
-    -- Status icon & label
-    local state = currentState or ns.CurrentState or (ns.States and ns.States.IDLE) or "IDLE"
+    local isRaid = IsInRaid and IsInRaid()
+    local isLeader = true
+    if ns.Core and ns.Core.IsLeader then
+        isLeader = ns.Core:IsLeader()
+    end
     local hasListing = ns.LFGService and ns.LFGService:HasActiveListing()
+    local state = currentState or ns.CurrentState or (ns.States and ns.States.IDLE) or "IDLE"
 
-    if hasListing and isMPlusQueue == false then
+    -- 1. Listing exists in M+ but key level is unparsed or invalid (e.g. "+1 wer 3", "chill run") -> DISABLE WINDOW
+    if hasListing and isMPlusQueue and not isValidKey then
+        f.keyIcon:SetDesaturated(true)
+        f.keyIcon:SetAlpha(0.35)
+        f.statusIcon:SetTexture("Interface\\Common\\Indicator-Gray")
+        f.statusText:SetText("|cffff4444Invalid Key|r")
+
+        if f.customModeBtn then f.customModeBtn:Disable(); f.customModeBtn:SetAlpha(0.30) end
+        if f.defaultModeBtn then f.defaultModeBtn:Disable(); f.defaultModeBtn:SetAlpha(0.30) end
+        if f.candBox then f.candBox:SetAlpha(0.40) end
+
+        f.inviteBtn:Disable()
+        f.inviteBtn:SetText("Invalid Key Level")
+    elseif hasListing and isMPlusQueue == false then
+        -- 2. Non-M+ Listing
+        f.keyIcon:SetDesaturated(true)
+        f.keyIcon:SetAlpha(0.35)
         f.statusIcon:SetTexture("Interface\\Common\\Indicator-Gray")
         f.statusText:SetText("|cffff8800Not M+|r")
-    elseif ns.States and state == ns.States.LISTED then
-        f.statusIcon:SetTexture("Interface\\Common\\Indicator-Green")
-        f.statusText:SetText("|cff00ff00Scanning Queue|r")
-    elseif ns.States and state == ns.States.ASSEMBLING then
-        f.statusIcon:SetTexture("Interface\\Common\\Indicator-Yellow")
-        f.statusText:SetText("|cffffff00Assembling|r")
-    elseif ns.States and state == ns.States.FULL then
-        f.statusIcon:SetTexture("Interface\\Common\\Indicator-Green")
-        f.statusText:SetText("|cff00ff00Group Full|r")
+
+        if f.customModeBtn then f.customModeBtn:Disable(); f.customModeBtn:SetAlpha(0.30) end
+        if f.defaultModeBtn then f.defaultModeBtn:Disable(); f.defaultModeBtn:SetAlpha(0.30) end
+        if f.candBox then f.candBox:SetAlpha(0.40) end
+
+        f.inviteBtn:Disable()
+        f.inviteBtn:SetText("Not an M+ Queue")
     else
-        f.statusIcon:SetTexture("Interface\\Common\\Indicator-Gray")
-        f.statusText:SetText("|cff888888IDLE|r")
-    end
+        -- 3. Valid M+ listing or idle
+        f.keyIcon:SetDesaturated(false)
+        f.keyIcon:SetAlpha(1.0)
+        if f.candBox then f.candBox:SetAlpha(1.0) end
+        if f.customModeBtn then f.customModeBtn:Enable() end
+        if f.defaultModeBtn then f.defaultModeBtn:Enable() end
+        self:UpdateModeButtons()
 
-    -- Mode buttons
-    if f.customModeBtn then f.customModeBtn:Enable() end
-    if f.defaultModeBtn then f.defaultModeBtn:Enable() end
-    self:UpdateModeButtons()
-
-    -- Primary action button state when no candidate is actively displayed
-    if not currentCandidate then
-        local isRaid = IsInRaid and IsInRaid()
-        local isLeader = true
-        if ns.Core and ns.Core.IsLeader then
-            isLeader = ns.Core:IsLeader()
+        if ns.States and state == ns.States.LISTED then
+            f.statusIcon:SetTexture("Interface\\Common\\Indicator-Green")
+            f.statusText:SetText("|cff00ff00Scanning Queue|r")
+        elseif ns.States and state == ns.States.ASSEMBLING then
+            f.statusIcon:SetTexture("Interface\\Common\\Indicator-Yellow")
+            f.statusText:SetText("|cffffff00Assembling|r")
+        elseif ns.States and state == ns.States.FULL then
+            f.statusIcon:SetTexture("Interface\\Common\\Indicator-Green")
+            f.statusText:SetText("|cff00ff00Group Full|r")
+        else
+            f.statusIcon:SetTexture("Interface\\Common\\Indicator-Gray")
+            f.statusText:SetText("|cff888888IDLE|r")
         end
 
-        if isRaid then
-            f.inviteBtn:Disable()
-            f.inviteBtn:SetText("Raid Group")
-        elseif not isLeader then
-            f.inviteBtn:Disable()
-            f.inviteBtn:SetText("Leader Only")
-        elseif hasListing and isMPlusQueue == false then
-            f.inviteBtn:Disable()
-            f.inviteBtn:SetText("Not an M+ Queue")
-        elseif not hasListing and (ns.States and state == ns.States.IDLE) then
-            f.inviteBtn:Enable()
-            f.inviteBtn:SetText("Open LFG Window")
-        else
-            f.inviteBtn:Disable()
-            f.inviteBtn:SetText("Invite")
+        if not currentCandidate then
+            if isRaid then
+                f.inviteBtn:Disable()
+                f.inviteBtn:SetText("Raid Group")
+            elseif not isLeader then
+                f.inviteBtn:Disable()
+                f.inviteBtn:SetText("Leader Only")
+            elseif not hasListing and (ns.States and state == ns.States.IDLE) then
+                f.inviteBtn:Enable()
+                f.inviteBtn:SetText("Open LFG Window")
+            else
+                f.inviteBtn:Disable()
+                f.inviteBtn:SetText("Invite")
+            end
         end
     end
 end
@@ -655,6 +671,27 @@ function UI:UpdateUtilityStatus(rosterContext)
     local totalTanks = (rosterContext.roles and rosterContext.roles["TANK"]) or #tanks
     local totalHealers = (rosterContext.roles and rosterContext.roles["HEALER"]) or #healers
     local totalDPS = (rosterContext.roles and rosterContext.roles["DAMAGER"]) or #dps
+
+    -- If listed in M+ but key level is unparsed/invalid, dim roles and utilities
+    local hasListing = ns.LFGService and ns.LFGService:HasActiveListing()
+    local isMPlus = ns.ActiveKeystone and ns.ActiveKeystone.isMPlusQueue
+    local isValidKey = ns.ActiveKeystone and ns.ActiveKeystone.isValidKey
+
+    if hasListing and isMPlus and not isValidKey then
+        for i = 1, 5 do
+            local slot = f.roleSlots[i]
+            if slot and slot.icon then
+                slot.icon:SetDesaturated(true)
+                slot.icon:SetAlpha(0.25)
+                slot.tooltipText = "Matchmaking Disabled (Invalid Key Level)"
+            end
+        end
+        f.blFrame.text:SetText("|cff666666BL|r")
+        f.blFrame.tooltip = "Bloodlust / Heroism: Matchmaking Disabled"
+        f.crFrame.text:SetText("|cff666666CR|r")
+        f.crFrame.tooltip = "Combat Resurrection: Matchmaking Disabled"
+        return
+    end
 
     -- Slot 1: Tank
     local tankSlot = f.roleSlots[1]
@@ -830,14 +867,26 @@ function UI:ClearCandidateCard()
 
     f.candSpecIcon:Hide()
     f.candName:SetPoint("TOPLEFT", f.boxHeader, "BOTTOMLEFT", 0, -5)
-    f.candName:SetText("|cff888888Queue searching...|r")
     f.candSpec:SetText("")
-    f.candMetrics:SetText("No qualifying applicants currently in queue.")
     f.candExp:SetText("")
+
+    local hasListing = ns.LFGService and ns.LFGService:HasActiveListing()
+    local isMPlus = ns.ActiveKeystone and ns.ActiveKeystone.isMPlusQueue
+    local isValidKey = ns.ActiveKeystone and ns.ActiveKeystone.isValidKey
+
+    if hasListing and isMPlus and not isValidKey then
+        f.candName:SetText("|cffff4444Unparsed Key Level|r")
+        f.candMetrics:SetText("Listing title must specify a valid key (e.g. +12).")
+        f.inviteBtn:Disable()
+        f.inviteBtn:SetText("Invalid Key Level")
+        return
+    end
+
+    f.candName:SetText("|cff888888Queue searching...|r")
+    f.candMetrics:SetText("No qualifying applicants currently in queue.")
 
     local isRaid = IsInRaid and IsInRaid()
     local isLeader = (not ns.Core or not ns.Core.IsLeader) or ns.Core:IsLeader()
-    local hasListing = ns.LFGService and ns.LFGService:HasActiveListing()
 
     if isRaid then
         f.inviteBtn:Disable()

@@ -91,7 +91,11 @@ local activeKeystone = {
     dungeonName = "Unknown Dungeon",
     iconTexture = 525134,
     activityID = 0,
+    isMPlusQueue = false,
+    isValidKey = false,
+    displayTitle = "No Keystone Found",
 }
+ns.ActiveKeystone = activeKeystone
 
 local pendingInvites = {} -- [applicantID] = candidate
 local stopwatchStartTime = nil
@@ -276,6 +280,12 @@ function Core:EvaluateQueue()
 
     -- Guard: Only party leader can evaluate and invite
     if not self:IsLeader() then
+        return
+    end
+
+    -- Guard: If listed in M+, must have a valid parsed key level
+    if ns.LFGService:HasActiveListing() and not activeKeystone.isValidKey then
+        ns.UI:ClearCandidateCard()
         return
     end
 
@@ -497,50 +507,63 @@ function Core:RefreshKeystoneInfo()
     if hasListing then
         -- Only proceed with matchmaking if the queued difficulty is Mythic+
         if isMPlus then
-            activeKeystone.challengeMapID = listMapID > 0 and listMapID or bagMapID
-            activeKeystone.keystoneLevel = listKeyLevel > 0 and listKeyLevel or (bagKeyLevel > 0 and bagKeyLevel or 2)
+            local parsedLevel = ns.LFGService:ParseKeyLevelFromTitle(listTitle)
+            activeKeystone.challengeMapID = bagMapID
+            activeKeystone.keystoneLevel = parsedLevel
             activeKeystone.dungeonName = (listDungeonName and listDungeonName ~= "" and listDungeonName ~= "Unknown Dungeon") and listDungeonName or bagDungeonName
-            activeKeystone.iconTexture = listIcon or bagIcon
+            activeKeystone.iconTexture = 525134 -- Always standard Mythic Keystone icon
             activeKeystone.activityID = listActID > 0 and listActID or bagActID
             activeKeystone.isMPlusQueue = true
+            activeKeystone.isValidKey = (parsedLevel >= 2 and parsedLevel <= 50)
 
-            -- Format clean display title: draw Key + Title of Grp in the window
-            local dName = (activeKeystone.dungeonName and activeKeystone.dungeonName ~= "Unknown Dungeon") and activeKeystone.dungeonName or "Dungeon"
+            -- Draw only title: use the listing title string directly
             if listTitle and listTitle ~= "" then
-                if listTitle:lower():find(dName:lower(), 1, true) then
-                    activeKeystone.displayTitle = listTitle
-                else
-                    activeKeystone.displayTitle = format("%s • %s", listTitle, dName)
-                end
+                activeKeystone.displayTitle = listTitle
+            elseif parsedLevel > 0 then
+                activeKeystone.displayTitle = format("+%d", parsedLevel)
             else
-                activeKeystone.displayTitle = format("%s +%d", dName, activeKeystone.keystoneLevel)
+                activeKeystone.displayTitle = "M+ Listing"
             end
 
-            -- Auto-attach if idle
-            if ns.CurrentState == ns.States.IDLE then
-                self:StartStopwatch()
-                local rosterContext = self:GetRosterContext()
-                local nextState = (rosterContext.totalCount > 1) and ns.States.ASSEMBLING or ns.States.LISTED
-                self:SetState(nextState, "Attached to active Premade Groups listing")
-                self:EvaluateQueue()
+            -- If key level could not be parsed or is invalid (e.g. "+1 wer 3"), disable matchmaking
+            if not activeKeystone.isValidKey then
+                if ns.CurrentState == ns.States.LISTED or ns.CurrentState == ns.States.ASSEMBLING then
+                    self:SetState(ns.States.IDLE, "Paused: Key level could not be parsed from title")
+                    self:StopStopwatch()
+                end
+                ns.UI:ClearCandidateCard()
+            else
+                -- Valid key level: Auto-attach if idle
+                if ns.CurrentState == ns.States.IDLE then
+                    self:StartStopwatch()
+                    local rosterContext = self:GetRosterContext()
+                    local nextState = (rosterContext.totalCount > 1) and ns.States.ASSEMBLING or ns.States.LISTED
+                    self:SetState(nextState, "Attached to active Premade Groups listing")
+                    self:EvaluateQueue()
+                end
             end
         else
             -- Non-M+ Listing (e.g. Raid, Delve, Regular Mythic, Heroic)
             activeKeystone.isMPlusQueue = false
+            activeKeystone.isValidKey = false
+            activeKeystone.keystoneLevel = 0
+            activeKeystone.iconTexture = 525134
             activeKeystone.displayTitle = (listTitle and listTitle ~= "") and listTitle or "Non-M+ Listing"
             if ns.CurrentState == ns.States.LISTED or ns.CurrentState == ns.States.ASSEMBLING then
                 self:SetState(ns.States.IDLE, "Stopped: Not a Mythic+ listing")
                 self:StopStopwatch()
             end
+            ns.UI:ClearCandidateCard()
         end
     else
         -- Not listed: show bag keystone
         activeKeystone.challengeMapID = bagMapID
         activeKeystone.keystoneLevel = bagKeyLevel
         activeKeystone.dungeonName = bagDungeonName
-        activeKeystone.iconTexture = bagIcon
+        activeKeystone.iconTexture = 525134
         activeKeystone.activityID = bagActID
         activeKeystone.isMPlusQueue = false
+        activeKeystone.isValidKey = (bagKeyLevel and bagKeyLevel >= 2)
         if bagDungeonName and bagDungeonName ~= "" and bagDungeonName ~= "Unknown Dungeon" then
             activeKeystone.displayTitle = format("%s +%d", bagDungeonName, bagKeyLevel or 2)
         else
@@ -562,8 +585,8 @@ function Core:StartMatchmaking()
 
     self:RefreshKeystoneInfo()
 
-    -- 1. If group is already listed in Premade Groups and is M+, attach immediately
-    if ns.LFGService:HasActiveListing() and activeKeystone.isMPlusQueue then
+    -- 1. If group is already listed in Premade Groups, is M+, and has a valid parsed key, attach immediately
+    if ns.LFGService:HasActiveListing() and activeKeystone.isMPlusQueue and activeKeystone.isValidKey then
         self:StartStopwatch()
         local rosterContext = self:GetRosterContext()
         local nextState = (rosterContext.totalCount > 1) and ns.States.ASSEMBLING or ns.States.LISTED
@@ -643,7 +666,8 @@ function Core:UpdateUI()
         ns.CurrentState,
         elapsed,
         activeKeystone.displayTitle,
-        activeKeystone.isMPlusQueue
+        activeKeystone.isMPlusQueue,
+        activeKeystone.isValidKey
     )
 
     ns.UI:UpdateUtilityStatus(rosterContext)

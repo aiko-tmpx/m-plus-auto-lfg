@@ -436,12 +436,12 @@ function LFGService:GetActiveListingDetails()
     local keyLevel = 0
     local groupTitle = entryInfo.name or ""
 
+    -- Extract clean dungeon name from activity metadata
     if activityID > 0 and C_LFGList.GetActivityInfoTable then
         local actInfo = C_LFGList.GetActivityInfoTable(activityID)
         if actInfo then
             isMythicPlus = (actInfo.isMythicPlusActivity == true)
 
-            -- Clean dungeon name from groupID or fullName (avoiding difficulty string in shortName)
             if actInfo.groupID and C_LFGList.GetActivityGroupInfo then
                 local groupName = C_LFGList.GetActivityGroupInfo(actInfo.groupID)
                 if groupName and groupName ~= "" then
@@ -451,53 +451,90 @@ function LFGService:GetActiveListingDetails()
             if dungeonName == "Unknown Dungeon" and actInfo.fullName then
                 dungeonName = actInfo.fullName:gsub("%s*%(.*%)", "")
             end
-
-            challengeMapID = actInfo.groupFinderActivityGroupID or actInfo.mapID or 0
         end
     end
 
-    if challengeMapID > 0 and C_ChallengeMode and C_ChallengeMode.GetMapUIInfo then
-        local name, _, _, texture = C_ChallengeMode.GetMapUIInfo(challengeMapID)
-        if name and name ~= "" then
-            dungeonName = name
-        end
-        if texture then
-            iconTexture = texture
-        end
-    end
+    -- Icon is always standard Mythic Keystone icon (525134) - never use dungeon art
+    iconTexture = 525134
 
     -- Parse key level strictly from group title (entryInfo.name)
-    if groupTitle and type(groupTitle) == "string" and groupTitle ~= "" then
-        -- 1. Explicit "+12" or "+ 12"
-        local matchedLevel = groupTitle:match("%+%s*(%d+)")
-        if matchedLevel then
-            keyLevel = tonumber(matchedLevel) or 0
-        end
+    keyLevel = self:ParseKeyLevelFromTitle(groupTitle)
 
-        -- 2. Explicit "12+" or "12 +"
-        if keyLevel == 0 then
-            matchedLevel = groupTitle:match("(%d+)%s*%+")
-            if matchedLevel then
-                keyLevel = tonumber(matchedLevel) or 0
+    return true, challengeMapID, keyLevel, dungeonName, iconTexture, isMythicPlus, activityID, groupTitle
+end
+
+---Parse Mythic+ keystone level from listing title string
+---Enforces valid range [2, 50], rejects conflicting or invalid numbers (e.g. "+1", "+1 wer 3", "+10 +12")
+---@param title string
+---@return number keyLevel (0 if unparseable or invalid)
+function LFGService:ParseKeyLevelFromTitle(title)
+    if not title or type(title) ~= "string" or title == "" then
+        return 0
+    end
+
+    -- 1. Explicit plus numbers: "+12", "+ 12", "12+", "12 +"
+    local plusMatches = {}
+    for numStr in title:gmatch("%+%s*(%d+)") do
+        table.insert(plusMatches, tonumber(numStr))
+    end
+    for numStr in title:gmatch("(%d+)%s*%+") do
+        table.insert(plusMatches, tonumber(numStr))
+    end
+
+    if #plusMatches > 0 then
+        local firstPlus = plusMatches[1]
+        for i = 2, #plusMatches do
+            if plusMatches[i] ~= firstPlus then
+                return 0 -- Conflicting plus numbers (e.g. "+10 +12")
             end
         end
 
-        -- 3. Standalone numbers between 2 and 35 (e.g. "12", "12 chill", "chill 12")
-        if keyLevel == 0 then
-            for numStr in groupTitle:gmatch("%f[%d](%d+)%f[%D]") do
-                local num = tonumber(numStr)
-                if num and num >= 2 and num <= 35 then
-                    local isScoreOrIlvl = groupTitle:match(numStr .. "%s*[kK]") or groupTitle:match(numStr .. "%s*[iI][lL]")
-                    if not isScoreOrIlvl then
-                        keyLevel = num
-                        break
-                    end
+        -- Key must be within valid range: 2 to 50 (e.g. "+1", "+0", "+55" are invalid)
+        if firstPlus < 2 or firstPlus > 50 then
+            return 0
+        end
+
+        -- Check for other contradictory standalone numbers (e.g. "+12 wer 15")
+        for numStr in title:gmatch("%f[%d](%d+)%f[%D]") do
+            local n = tonumber(numStr)
+            if n and n ~= firstPlus then
+                local isScoreOrIlvl = title:match(numStr .. "%s*[kK]")
+                    or title:match(numStr .. "%s*[iI][lL]")
+                    or title:match("[iI][lL]%s*" .. numStr)
+                    or (n > 50)
+                local isChest = title:match(numStr .. "%s*[cC][hH][eE][sS][tT]")
+                if not isScoreOrIlvl and not isChest then
+                    return 0 -- Contradictory number found
                 end
             end
         end
+
+        return firstPlus
     end
 
-    return true, challengeMapID, keyLevel, dungeonName, iconTexture, isMythicPlus, activityID, groupTitle
+    -- 2. Standalone numbers without plus (e.g. "12 chill", "Den 12")
+    local candidateNumbers = {}
+    for numStr in title:gmatch("%f[%d](%d+)%f[%D]") do
+        local n = tonumber(numStr)
+        if n then
+            local isScoreOrIlvl = title:match(numStr .. "%s*[kK]")
+                or title:match(numStr .. "%s*[iI][lL]")
+                or title:match("[iI][lL]%s*" .. numStr)
+                or (n > 50)
+            if not isScoreOrIlvl then
+                table.insert(candidateNumbers, n)
+            end
+        end
+    end
+
+    if #candidateNumbers == 1 then
+        local n = candidateNumbers[1]
+        if n >= 2 and n <= 50 then
+            return n
+        end
+    end
+
+    return 0
 end
 
 -------------------------------------------------------------------------------
