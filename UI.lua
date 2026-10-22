@@ -276,40 +276,98 @@ function UI:CreateMainHUD()
     rulesLabel:SetPoint("LEFT", f, "TOPLEFT", 14, -127)
     rulesLabel:SetText("Rules:")
 
-    local modeBtn = CreateFrame("Button", nil, f, "UIPanelButtonTemplate")
-    modeBtn:SetSize(72, 20)
-    modeBtn:SetPoint("LEFT", rulesLabel, "RIGHT", 8, 0)
-    modeBtn:SetText("Default")
-    f.modeBtn = modeBtn
+    -- Segmented Dual Buttons: [Custom] [Default]
+    local customModeBtn = CreateFrame("Button", nil, f, "UIPanelButtonTemplate")
+    customModeBtn:SetSize(62, 20)
+    customModeBtn:SetPoint("LEFT", rulesLabel, "RIGHT", 6, 0)
+    customModeBtn:SetText("Custom")
+    f.customModeBtn = customModeBtn
 
-    modeBtn:SetScript("OnClick", function(self)
-        local cur = (MPlusAutoLFGDB and MPlusAutoLFGDB.rulesMode) or "DEFAULT"
-        local newMode = (cur == "CUSTOM") and "DEFAULT" or "CUSTOM"
-        if MPlusAutoLFGDB then
-            MPlusAutoLFGDB.rulesMode = newMode
-        end
-        UI:UpdateModeButton()
-        if ns.Core then
-            ns.Core:EvaluateQueue()
-            ns.Core:UpdateUI()
+    local defaultModeBtn = CreateFrame("Button", nil, f, "UIPanelButtonTemplate")
+    defaultModeBtn:SetSize(62, 20)
+    defaultModeBtn:SetPoint("LEFT", customModeBtn, "RIGHT", 4, 0)
+    defaultModeBtn:SetText("Default")
+    f.defaultModeBtn = defaultModeBtn
+
+    customModeBtn:SetScript("OnClick", function(self)
+        if MPlusAutoLFGDB and MPlusAutoLFGDB.rulesMode ~= "CUSTOM" then
+            MPlusAutoLFGDB.rulesMode = "CUSTOM"
+            UI:UpdateModeButtons()
+            if ns.Core then
+                ns.Core:EvaluateQueue()
+                ns.Core:UpdateUI()
+            end
         end
     end)
 
-    modeBtn:SetScript("OnEnter", function(self)
+    defaultModeBtn:SetScript("OnClick", function(self)
+        if MPlusAutoLFGDB and MPlusAutoLFGDB.rulesMode ~= "DEFAULT" then
+            MPlusAutoLFGDB.rulesMode = "DEFAULT"
+            UI:UpdateModeButtons()
+            if ns.Core then
+                ns.Core:EvaluateQueue()
+                ns.Core:UpdateUI()
+            end
+        end
+    end)
+
+    customModeBtn:SetScript("OnEnter", function(self)
         GameTooltip:SetOwner(self, "ANCHOR_TOP")
         local cur = (MPlusAutoLFGDB and MPlusAutoLFGDB.rulesMode) or "DEFAULT"
-        if cur == "CUSTOM" then
-            GameTooltip:SetText("Custom Rules Mode", 1, 0.82, 0)
-            GameTooltip:AddLine("Active: Using custom key tolerance and ilvl deficit from AddOn Settings.", 1, 1, 1, true)
-            GameTooltip:AddLine("Click to toggle Default Rules.", 0.7, 0.7, 0.7)
+        local isActive = (cur == "CUSTOM")
+        local cr = (MPlusAutoLFGDB and MPlusAutoLFGDB.customRules) or {}
+        local tolerance = cr.keyDropTolerance or 2
+        local deficit = cr.ilvlDeficit or 10
+        local onlyUncompleted = cr.onlyUncompletedDungeon == true
+
+        if isActive then
+            GameTooltip:SetText("Custom Rules Mode |cff00ff00[ACTIVE]|r", 1, 0.82, 0)
         else
-            GameTooltip:SetText("Default Rules Mode", 1, 0.82, 0)
-            GameTooltip:AddLine("Active: Tiered rules (+2-+6 open, +7-+11 [key-2], +12+ [key-1]).", 1, 1, 1, true)
-            GameTooltip:AddLine("Click to toggle Custom Rules.", 0.7, 0.7, 0.7)
+            GameTooltip:SetText("Custom Rules Mode |cff888888[Click to Activate]|r", 1, 0.82, 0)
+        end
+
+        GameTooltip:AddLine("Enforces your custom qualification settings from Options:", 1, 1, 1, true)
+        if onlyUncompleted then
+            GameTooltip:AddLine("• Key Experience: |cff00ffffOnly applicants who haven't completed this dungeon (0 runs)|r", 0.8, 0.8, 0.8, true)
+        else
+            GameTooltip:AddLine(format("• Key Experience: |cffffd100[Key - %d]|r (Min: +2, timed required)", tolerance), 0.8, 0.8, 0.8, true)
+        end
+        GameTooltip:AddLine(format("• Item Level Deficit: |cffffd100-%d ilvl|r from recommendation", deficit), 0.8, 0.8, 0.8, true)
+        GameTooltip:AddLine("• Timed Runs: |cff00ff00Required by default|r", 0.8, 0.8, 0.8, true)
+
+        if not isActive then
+            GameTooltip:AddLine("Click to switch to Custom Rules.", 0.2, 1, 0.2)
+        else
+            GameTooltip:AddLine("Click 'Options' button on the right to configure.", 0.7, 0.7, 0.7)
         end
         GameTooltip:Show()
     end)
-    modeBtn:SetScript("OnLeave", function() GameTooltip:Hide() end)
+    customModeBtn:SetScript("OnLeave", function() GameTooltip:Hide() end)
+
+    defaultModeBtn:SetScript("OnEnter", function(self)
+        GameTooltip:SetOwner(self, "ANCHOR_TOP")
+        local cur = (MPlusAutoLFGDB and MPlusAutoLFGDB.rulesMode) or "DEFAULT"
+        local isActive = (cur == "DEFAULT")
+
+        if isActive then
+            GameTooltip:SetText("Default Rules Mode |cff00ff00[ACTIVE]|r", 1, 0.82, 0)
+        else
+            GameTooltip:SetText("Default Rules Mode |cff888888[Click to Activate]|r", 1, 0.82, 0)
+        end
+
+        GameTooltip:AddLine("Automated smart tiers tailored to key difficulty:", 1, 1, 1, true)
+        GameTooltip:AddLine("• Keys +2 to +6: |cff00ff00Open to all applicants|r (no prior dungeon experience required)", 0.8, 0.8, 0.8, true)
+        GameTooltip:AddLine("• Keys +7 to +11: Requires |cffffd100[Key - 2]|r completed timed (e.g. +8 for a +10)", 0.8, 0.8, 0.8, true)
+        GameTooltip:AddLine("• Keys +12+: Requires |cffff8000[Key - 1]|r completed timed (e.g. +11 for a +12)", 0.8, 0.8, 0.8, true)
+        GameTooltip:AddLine("• Item Level: Must meet Blizzard's dungeon recommendation", 0.8, 0.8, 0.8, true)
+        GameTooltip:AddLine("• Timed Runs: |cff00ff00Required by default|r", 0.8, 0.8, 0.8, true)
+
+        if not isActive then
+            GameTooltip:AddLine("Click to switch to Default Rules.", 0.2, 1, 0.2)
+        end
+        GameTooltip:Show()
+    end)
+    defaultModeBtn:SetScript("OnLeave", function() GameTooltip:Hide() end)
 
     local configBtn = CreateFrame("Button", nil, f, "UIPanelButtonTemplate")
     configBtn:SetSize(68, 20)
@@ -476,16 +534,39 @@ function UI:OnInviteClicked(candidate)
 end
 
 -------------------------------------------------------------------------------
--- Rules Mode Button Updater
+-- Rules Mode Button Updater (Dual [Custom] [Default] Visual Sync)
 -------------------------------------------------------------------------------
-function UI:UpdateModeButton()
-    if not mainFrame or not mainFrame.modeBtn then return end
-    local mode = (MPlusAutoLFGDB and MPlusAutoLFGDB.rulesMode) or "DEFAULT"
-    if mode == "CUSTOM" then
-        mainFrame.modeBtn:SetText("Custom")
-    else
-        mainFrame.modeBtn:SetText("Default")
+function UI:UpdateModeButtons()
+    if not mainFrame then return end
+    local f = mainFrame
+    local cur = (MPlusAutoLFGDB and MPlusAutoLFGDB.rulesMode) or "DEFAULT"
+    local isCustom = (cur == "CUSTOM")
+
+    local function ApplyButtonVisuals(btn, isActive, label)
+        if not btn then return end
+        btn:SetText(label)
+        for _, region in ipairs({ btn:GetRegions() }) do
+            if region:IsObjectType("Texture") then
+                region:SetDesaturated(not isActive)
+            end
+        end
+        if isActive then
+            btn:SetAlpha(1.0)
+            local fs = btn:GetFontString()
+            if fs then fs:SetTextColor(1, 0.82, 0) end
+        else
+            btn:SetAlpha(0.40)
+            local fs = btn:GetFontString()
+            if fs then fs:SetTextColor(0.60, 0.60, 0.60) end
+        end
     end
+
+    ApplyButtonVisuals(f.customModeBtn, isCustom, "Custom")
+    ApplyButtonVisuals(f.defaultModeBtn, not isCustom, "Default")
+end
+
+function UI:UpdateModeButton()
+    self:UpdateModeButtons()
 end
 
 -------------------------------------------------------------------------------
@@ -581,12 +662,15 @@ function UI:UpdateHeader(challengeMapID, keystoneLevel, dungeonName, iconTexture
         f.statusIcon:SetTexture("Interface\\Common\\Indicator-Gray")
         f.statusText:SetText("|cffff4444MISMATCH|r")
         if f.mismatchOverlay then f.mismatchOverlay:Show() end
-        if f.modeBtn then f.modeBtn:Disable() end
+        if f.customModeBtn then f.customModeBtn:Disable() end
+        if f.defaultModeBtn then f.defaultModeBtn:Disable() end
     else
         f.keyIcon:SetDesaturated(false)
         f.keyIcon:SetAlpha(1.0)
         if f.mismatchOverlay then f.mismatchOverlay:Hide() end
-        if f.modeBtn then f.modeBtn:Enable() end
+        if f.customModeBtn then f.customModeBtn:Enable() end
+        if f.defaultModeBtn then f.defaultModeBtn:Enable() end
+        self:UpdateModeButtons()
     end
 
     -- If no candidate is actively displayed, sync the button

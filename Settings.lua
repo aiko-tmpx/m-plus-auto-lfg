@@ -41,24 +41,37 @@ local function CreateCheckbox(parent, labelText, tooltipText, getter, setter)
     return cb
 end
 
-local function CreateSlider(parent, labelText, minVal, maxVal, step, getter, setter, formatFunc)
+local function CreateSlider(parent, labelText, minVal, maxVal, step, getter, setter, formatFunc, tooltipText)
     local slider = CreateFrame("Slider", nil, parent, "OptionsSliderTemplate")
     slider:SetMinMaxValues(minVal, maxVal)
     slider:SetValueStep(step)
     slider:SetObeyStepOnDrag(true)
-    slider:SetWidth(240)
+    slider:SetWidth(280)
 
     slider.Low:SetText(tostring(minVal))
     slider.High:SetText(tostring(maxVal))
 
     local title = slider:CreateFontString(nil, "OVERLAY", "GameFontNormal")
-    title:SetPoint("BOTTOMLEFT", slider, "TOPLEFT", 0, 4)
+    title:SetPoint("BOTTOMLEFT", slider, "TOPLEFT", 0, 6)
     title:SetText(labelText)
     slider.title = title
 
     local valueText = slider:CreateFontString(nil, "OVERLAY", "GameFontHighlight")
-    valueText:SetPoint("BOTTOMRIGHT", slider, "TOPRIGHT", 0, 4)
+    valueText:SetPoint("BOTTOMRIGHT", slider, "TOPRIGHT", 0, 6)
     slider.valueText = valueText
+
+    if tooltipText then
+        slider:EnableMouse(true)
+        slider:HookScript("OnEnter", function(self)
+            GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
+            GameTooltip:SetText(labelText, 1, 0.82, 0)
+            GameTooltip:AddLine(tooltipText, 1, 1, 1, true)
+            GameTooltip:Show()
+        end)
+        slider:HookScript("OnLeave", function()
+            GameTooltip:Hide()
+        end)
+    end
 
     slider:SetScript("OnValueChanged", function(self, val)
         val = floor(val + 0.5)
@@ -144,27 +157,28 @@ function ns.InitializeSettings()
             end
             if ns.Core and ns.Core.EvaluateQueue then ns.Core:EvaluateQueue() end
         end,
-        function(val) return format("[Key - %d] (Min: +2)", val) end
+        function(val) return format("[Key - %d] (Min: +2)", val) end,
+        "Specifies how many levels below the listed keystone a candidate's best run can be.\n\nExample for a +10 keystone:\n• Drop 0: Candidate must have timed a +10 or higher.\n• Drop 1: Candidate must have timed at least a +9.\n• Drop 2: Candidate must have timed at least a +8.\n\nNote: Timed runs are always required by default. Candidates with equal or higher keys for this dungeon always qualify."
     )
-    keySlider:SetPoint("TOPLEFT", keyHeader, "BOTTOMLEFT", 0, -24)
+    keySlider:SetPoint("TOPLEFT", keyHeader, "BOTTOMLEFT", 0, -28)
     table.insert(widgets, keySlider)
 
-    local timedCheckbox = CreateCheckbox(panel, "Require Timed Run (Ignore Depleted / Overtime Keys)",
-        "When checked, candidate's best run must have been completed within the timer.",
-        function() return (MPlusAutoLFGDB and MPlusAutoLFGDB.customRules and MPlusAutoLFGDB.customRules.requireTimedRun) ~= false end,
+    local uncompletedCheckbox = CreateCheckbox(panel, "Only applicants who haven't completed this dungeon",
+        "When checked, only candidates who have NEVER completed this dungeon (best run level is 0) will qualify.\n\nIdeal for bonus crests, valorstone farming, or first-time rating gain groups.",
+        function() return (MPlusAutoLFGDB and MPlusAutoLFGDB.customRules and MPlusAutoLFGDB.customRules.onlyUncompletedDungeon) == true end,
         function(val)
             if MPlusAutoLFGDB and MPlusAutoLFGDB.customRules then
-                MPlusAutoLFGDB.customRules.requireTimedRun = val
+                MPlusAutoLFGDB.customRules.onlyUncompletedDungeon = val
             end
             if ns.Core and ns.Core.EvaluateQueue then ns.Core:EvaluateQueue() end
         end
     )
-    timedCheckbox:SetPoint("TOPLEFT", keySlider, "BOTTOMLEFT", 0, -18)
-    table.insert(widgets, timedCheckbox)
+    uncompletedCheckbox:SetPoint("TOPLEFT", keySlider, "BOTTOMLEFT", 0, -22)
+    table.insert(widgets, uncompletedCheckbox)
 
     -- Section 3: Item Level Options
     local ilvlHeader = panel:CreateFontString(nil, "OVERLAY", "GameFontNormal")
-    ilvlHeader:SetPoint("TOPLEFT", timedCheckbox, "BOTTOMLEFT", 0, -20)
+    ilvlHeader:SetPoint("TOPLEFT", uncompletedCheckbox, "BOTTOMLEFT", 0, -20)
     ilvlHeader:SetText("Custom Item Level Requirements")
 
     local ilvlSlider = CreateSlider(panel, "Allowed Item Level Deficit", 0, 30, 1,
@@ -175,23 +189,11 @@ function ns.InitializeSettings()
             end
             if ns.Core and ns.Core.EvaluateQueue then ns.Core:EvaluateQueue() end
         end,
-        function(val) return format("-%d ilvl from recommendation", val) end
+        function(val) return format("-%d ilvl from recommendation", val) end,
+        "Specifies how far below Blizzard's recommended minimum item level an applicant is allowed to be.\n\nExample for a dungeon recommending 610 ilvl:\n• Deficit 0: Must be 610+ ilvl.\n• Deficit 10: Candidates with 600+ ilvl qualify.\n• Deficit 20: Candidates with 590+ ilvl qualify."
     )
-    ilvlSlider:SetPoint("TOPLEFT", ilvlHeader, "BOTTOMLEFT", 0, -24)
+    ilvlSlider:SetPoint("TOPLEFT", ilvlHeader, "BOTTOMLEFT", 0, -28)
     table.insert(widgets, ilvlSlider)
-
-    local leaderIlvlCheckbox = CreateCheckbox(panel, "Require Candidate ilvl >= Party Leader ilvl",
-        "When checked, only applicants whose equipped item level is equal to or greater than the group leader's ilvl are qualified.",
-        function() return (MPlusAutoLFGDB and MPlusAutoLFGDB.customRules and MPlusAutoLFGDB.customRules.requireIlvlLeader) == true end,
-        function(val)
-            if MPlusAutoLFGDB and MPlusAutoLFGDB.customRules then
-                MPlusAutoLFGDB.customRules.requireIlvlLeader = val
-            end
-            if ns.Core and ns.Core.EvaluateQueue then ns.Core:EvaluateQueue() end
-        end
-    )
-    leaderIlvlCheckbox:SetPoint("TOPLEFT", ilvlSlider, "BOTTOMLEFT", 0, -18)
-    table.insert(widgets, leaderIlvlCheckbox)
 
     panel.Refresh = function()
         for _, w in ipairs(widgets) do

@@ -170,10 +170,10 @@ ns.DefaultConfig = {
     autoDelistOnFull = true,
     rulesMode = "DEFAULT", -- "DEFAULT" (auto-tiered) or "CUSTOM" (user rules)
     customRules = {
-        keyDropTolerance = 2,      -- Allowed key difference [TargetKey - X] (clamped to +2)
-        requireTimedRun = true,    -- Ignore depleted / overtime runs
-        ilvlDeficit = 10,          -- Allowed item level deficit below key recommendation
-        requireIlvlLeader = false, -- Require applicant ilvl >= leader ilvl
+        keyDropTolerance = 2,           -- Allowed key difference [TargetKey - X] (clamped to +2)
+        requireTimedRun = true,         -- Timed runs required by default
+        ilvlDeficit = 10,               -- Allowed item level deficit below key recommendation
+        onlyUncompletedDungeon = false, -- Only invite candidates who haven't completed this dungeon
     },
     minimap = {
         hide = false,

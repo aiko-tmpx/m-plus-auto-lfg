@@ -60,18 +60,11 @@ end
 function ns.CheckItemLevel(candidate, rosterContext)
     local requiredIlvl = rosterContext.requiredItemLevel or 0
     local applicantIlvl = candidate.itemLevel or 0
-    local leaderIlvl = rosterContext.leaderIlvl or rosterContext.leaderItemLevel or 0
 
     local isCustom = (MPlusAutoLFGDB and MPlusAutoLFGDB.rulesMode) == "CUSTOM"
     local customRules = MPlusAutoLFGDB and MPlusAutoLFGDB.customRules
 
     if isCustom and customRules then
-        if customRules.requireIlvlLeader and leaderIlvl > 0 then
-            if applicantIlvl < leaderIlvl then
-                return false, format("Applicant item level %d is below group leader ilvl (%d)", applicantIlvl, leaderIlvl)
-            end
-        end
-
         local deficit = customRules.ilvlDeficit or 10
         local minAllowed = max(0, requiredIlvl - deficit)
         if applicantIlvl < minAllowed then
@@ -93,7 +86,8 @@ end
 ---  * Keys 7 to 11: Requires timed completion at >= (KeyLevel - 2).
 ---  * Keys >= 12: Requires timed completion at >= (KeyLevel - 1).
 ---Custom Mode:
----  * Follows configured keyDropTolerance slider (clamped to min +2) and requireTimedRun checkbox.
+---  * Follows configured keyDropTolerance slider (clamped to min +2). Timed runs required by default.
+---  * If onlyUncompletedDungeon is checked: only candidates with 0 prior runs qualify.
 ---@param candidate table
 ---@param rosterContext table
 ---@return boolean passed, string? reason
@@ -102,15 +96,24 @@ function ns.CheckExperience(candidate, rosterContext)
     local bestRun = candidate.bestRunLevel or 0
     local timed = candidate.bestRunFinishedSuccess == true
 
-    -- Applicants with equal or higher keys for this dungeon are strictly valid
-    if bestRun >= targetKey then
-        return true, nil
-    end
-
     local isCustom = (MPlusAutoLFGDB and MPlusAutoLFGDB.rulesMode) == "CUSTOM"
     local customRules = MPlusAutoLFGDB and MPlusAutoLFGDB.customRules
 
     if isCustom and customRules then
+        -- Custom Option: Only applicants who haven't completed this dungeon
+        if customRules.onlyUncompletedDungeon then
+            if bestRun > 0 then
+                return false, format("Candidate already completed this dungeon (+%d)", bestRun)
+            end
+            -- Best run is 0: Candidate has not completed this dungeon (qualifies for bonus/learning)
+            return true, nil
+        end
+
+        -- Applicants with equal or higher keys for this dungeon are strictly valid
+        if bestRun >= targetKey then
+            return true, nil
+        end
+
         local tolerance = customRules.keyDropTolerance or 2
         local minRequiredLevel = max(2, targetKey - tolerance)
 
@@ -118,10 +121,16 @@ function ns.CheckExperience(candidate, rosterContext)
             return false, format("Best run (+%d) is below custom required level (+%d) for key +%d", bestRun, minRequiredLevel, targetKey)
         end
 
-        if customRules.requireTimedRun and not timed then
+        -- Timed runs required by default
+        if not timed then
             return false, format("Best run (+%d) was not completed within the timer", bestRun)
         end
     else
+        -- Applicants with equal or higher keys for this dungeon are strictly valid
+        if bestRun >= targetKey then
+            return true, nil
+        end
+
         -- Default Mode (Smart automated tiered logic):
         -- Keys <= 6: Open to all applicants meeting the role and basic item level
         if targetKey <= 6 then
