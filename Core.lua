@@ -514,18 +514,29 @@ function Core:RefreshKeystoneInfo()
         elseif bagMapID > 0 and listMapID > 0 and bagMapID ~= listMapID then
             self.isKeystoneMismatch = true
             self.mismatchReason = format("Listed dungeon != Bag dungeon")
+        elseif bagKeyLevel == 0 and listKeyLevel > 0 then
+            self.isKeystoneMismatch = true
+            self.mismatchReason = "No keystone in bags"
         else
             self.isKeystoneMismatch = false
             self.mismatchReason = nil
         end
 
-        -- Auto-attach if idle
-        if ns.CurrentState == ns.States.IDLE then
-            self:StartStopwatch()
-            local rosterContext = self:GetRosterContext()
-            local nextState = (rosterContext.totalCount > 1) and ns.States.ASSEMBLING or ns.States.LISTED
-            self:SetState(nextState, "Attached to active Premade Groups listing")
-            self:EvaluateQueue()
+        -- If a keystone mismatch is detected, pause matchmaking
+        if self.isKeystoneMismatch then
+            if ns.CurrentState == ns.States.LISTED or ns.CurrentState == ns.States.ASSEMBLING then
+                self:SetState(ns.States.IDLE, "Paused: Keystone mismatch detected")
+                self:StopStopwatch()
+            end
+        else
+            -- Auto-attach if idle and no mismatch
+            if ns.CurrentState == ns.States.IDLE then
+                self:StartStopwatch()
+                local rosterContext = self:GetRosterContext()
+                local nextState = (rosterContext.totalCount > 1) and ns.States.ASSEMBLING or ns.States.LISTED
+                self:SetState(nextState, "Attached to active Premade Groups listing")
+                self:EvaluateQueue()
+            end
         end
     else
         activeKeystone.challengeMapID = bagMapID

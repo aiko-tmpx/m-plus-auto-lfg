@@ -384,6 +384,23 @@ function UI:CreateMainHUD()
     candExp:SetText("")
     f.candExp = candExp
 
+    -- Mismatch Dimming Overlay (Veil over middle sections when listed key differs from bag key)
+    local mismatchOverlay = CreateFrame("Frame", nil, f)
+    mismatchOverlay:SetPoint("TOPLEFT", f, "TOPLEFT", 10, -88)
+    mismatchOverlay:SetPoint("BOTTOMRIGHT", candBox, "BOTTOMRIGHT", 2, -2)
+    mismatchOverlay:SetFrameLevel(candBox:GetFrameLevel() + 5)
+
+    local overlayTex = mismatchOverlay:CreateTexture(nil, "BACKGROUND")
+    overlayTex:SetAllPoints(mismatchOverlay)
+    overlayTex:SetColorTexture(0.02, 0.02, 0.04, 0.72)
+
+    local overlayText = mismatchOverlay:CreateFontString(nil, "OVERLAY", "GameFontDisable")
+    overlayText:SetPoint("CENTER", mismatchOverlay, "CENTER", 0, 0)
+    overlayText:SetText("LISTING MISMATCH - MATCHMAKING PAUSED")
+    mismatchOverlay.text = overlayText
+    mismatchOverlay:Hide()
+    f.mismatchOverlay = mismatchOverlay
+
     ---------------------------------------------------------------------------
     -- Bottom Section: Unified Action Button (UIPanelButtonTemplate)
     ---------------------------------------------------------------------------
@@ -557,6 +574,21 @@ function UI:UpdateHeader(challengeMapID, keystoneLevel, dungeonName, iconTexture
         f.warningText:Hide()
     end
 
+    -- Visual Desaturation & Dimming State
+    if isMismatch then
+        f.keyIcon:SetDesaturated(true)
+        f.keyIcon:SetAlpha(0.45)
+        f.statusIcon:SetTexture("Interface\\Common\\Indicator-Gray")
+        f.statusText:SetText("|cffff4444MISMATCH|r")
+        if f.mismatchOverlay then f.mismatchOverlay:Show() end
+        if f.modeBtn then f.modeBtn:Disable() end
+    else
+        f.keyIcon:SetDesaturated(false)
+        f.keyIcon:SetAlpha(1.0)
+        if f.mismatchOverlay then f.mismatchOverlay:Hide() end
+        if f.modeBtn then f.modeBtn:Enable() end
+    end
+
     -- If no candidate is actively displayed, sync the button
     if not currentCandidate then
         if isRaid then
@@ -606,6 +638,24 @@ function UI:UpdateUtilityStatus(rosterContext)
     local totalTanks = (rosterContext.roles and rosterContext.roles["TANK"]) or #tanks
     local totalHealers = (rosterContext.roles and rosterContext.roles["HEALER"]) or #healers
     local totalDPS = (rosterContext.roles and rosterContext.roles["DAMAGER"]) or #dps
+
+    -- If keystone mismatch is active, desaturate and dim all role icons and utilities
+    local isMismatch = ns.Core and ns.Core.isKeystoneMismatch
+    if isMismatch then
+        for i = 1, 5 do
+            local slot = f.roleSlots[i]
+            if slot and slot.icon then
+                slot.icon:SetDesaturated(true)
+                slot.icon:SetAlpha(0.25)
+                slot.tooltipText = "Matchmaking Paused (Listing Mismatch)"
+            end
+        end
+        f.blFrame.text:SetText("|cff666666BL|r")
+        f.blFrame.tooltip = "Bloodlust / Heroism (Matchmaking Paused)"
+        f.crFrame.text:SetText("|cff666666CR|r")
+        f.crFrame.tooltip = "Combat Resurrection (Matchmaking Paused)"
+        return
+    end
 
     -- Slot 1: Tank
     local tankSlot = f.roleSlots[1]
@@ -716,6 +766,8 @@ function UI:UpdateCandidateCard(candidate, isInvited)
     -- Spec Icon
     if candidate.specIcon and candidate.specIcon > 0 then
         f.candSpecIcon:SetTexture(candidate.specIcon)
+        f.candSpecIcon:SetDesaturated(isMismatch == true)
+        f.candSpecIcon:SetAlpha(isMismatch and 0.35 or 1.0)
         f.candSpecIcon:Show()
         f.candName:SetPoint("TOPLEFT", f.candSpecIcon, "TOPRIGHT", 8, 2)
     else

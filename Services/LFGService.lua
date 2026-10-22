@@ -423,16 +423,51 @@ function LFGService:GetActiveListingDetails()
     end
 
     local activityID = entryInfo.activityID or 0
+    if (not activityID or activityID == 0) and entryInfo.activityIDs and entryInfo.activityIDs[1] then
+        activityID = entryInfo.activityIDs[1]
+    end
     local requiredIlvl = entryInfo.requiredItemLevel or 0
     local dungeonName = "Unknown Dungeon"
     local challengeMapID = 0
     local iconTexture = 525134
     local keyLevel = 0
 
-    if entryInfo.name then
-        local matchedLevel = entryInfo.name:match("%+(%d+)")
+    -- Extract group listing name / title with UI widget fallbacks if unpopulated/delayed
+    local title = entryInfo.name
+    if (not title or title == "") and LFGListFrame and LFGListFrame.ApplicationViewer and LFGListFrame.ApplicationViewer.EntryName and LFGListFrame.ApplicationViewer.EntryName.GetText then
+        title = LFGListFrame.ApplicationViewer.EntryName:GetText()
+    end
+    if (not title or title == "") and LFGListFrame and LFGListFrame.EntryCreation and LFGListFrame.EntryCreation.Name and LFGListFrame.EntryCreation.Name.GetText then
+        title = LFGListFrame.EntryCreation.Name:GetText()
+    end
+
+    if title and type(title) == "string" and title ~= "" then
+        -- 1. Explicit "+12" or "+ 12"
+        local matchedLevel = title:match("%+%s*(%d+)")
         if matchedLevel then
             keyLevel = tonumber(matchedLevel) or 0
+        end
+
+        -- 2. Explicit "12+" or "12 +"
+        if keyLevel == 0 then
+            matchedLevel = title:match("(%d+)%s*%+")
+            if matchedLevel then
+                keyLevel = tonumber(matchedLevel) or 0
+            end
+        end
+
+        -- 3. Standalone numbers between 2 and 35 (e.g. "12", "12 Den", "Den 12", "[12]", "(12)")
+        if keyLevel == 0 then
+            for numStr in title:gmatch("%f[%d](%d+)%f[%D]") do
+                local num = tonumber(numStr)
+                if num and num >= 2 and num <= 35 then
+                    local isScoreOrIlvl = title:match(numStr .. "%s*[kK]") or title:match(numStr .. "%s*[iI][lL]")
+                    if not isScoreOrIlvl then
+                        keyLevel = num
+                        break
+                    end
+                end
+            end
         end
     end
 
