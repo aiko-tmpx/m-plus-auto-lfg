@@ -432,6 +432,20 @@ function UI:OnInviteClicked(candidate)
         return
     end
 
+    -- Pre-flight verification: Ensure candidate is still actively applied before sending invite
+    local appInfo = ns.LFGService:GetApplicantInfo(candidate.applicantID)
+    if not appInfo or appInfo.applicationStatus ~= "applied" or appInfo.isStale then
+        if ns.Logger and ns.Logger.Warn then
+            ns.Logger:Warn("QUEUE", format("Cannot invite '%s': Application is no longer active (%s).", candidate.name or "Applicant", (appInfo and appInfo.applicationStatus) or "cancelled"))
+        end
+        UI:ClearCandidateCard()
+        if ns.Core then
+            ns.Core:EvaluateQueue()
+            ns.Core:UpdateUI()
+        end
+        return
+    end
+
     local ok = ns.LFGService:InviteApplicant(candidate.applicantID)
     if ok then
         if ns.OnCandidateInvited then

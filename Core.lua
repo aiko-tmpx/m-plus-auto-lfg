@@ -304,7 +304,9 @@ function Core:EvaluateQueue()
         -- Skip candidates already invited and pending
         if not pendingInvites[applicantID] then
             local appInfo = ns.LFGService:GetApplicantInfo(applicantID)
-            if appInfo and (appInfo.applicationStatus == "applied" or appInfo.applicationStatus == "none") then
+            local isApplied = appInfo and appInfo.applicationStatus == "applied" and not appInfo.isStale
+            local isPendingCancel = appInfo and (appInfo.pendingApplicationStatus == "cancelled" or appInfo.pendingApplicationStatus == "declined" or appInfo.pendingApplicationStatus == "timedout")
+            if isApplied and not isPendingCancel then
                 -- Single-member applicant evaluation
                 local candidate = ns.LFGService:GetApplicantMemberInfo(applicantID, 1)
                 if candidate then
@@ -362,7 +364,7 @@ function ns.OnCandidateInvited(candidate)
     -- Card remains locked on the invited candidate showing "INVITED" until resolved
 end
 
----Handle applicant status changes (declined, timed out, accepted)
+---Handle applicant status changes (declined, timed out, accepted, cancelled)
 ---@param applicantID number
 function Core:OnApplicantUpdated(applicantID)
     if not applicantID then return end
@@ -370,11 +372,12 @@ function Core:OnApplicantUpdated(applicantID)
     local appInfo = ns.LFGService:GetApplicantInfo(applicantID)
     local status = appInfo and appInfo.applicationStatus
 
+    -- 1. Check if candidate was invited and is awaiting response
     if pendingInvites[applicantID] then
         local pending = pendingInvites[applicantID]
 
         if status == "declined" or status == "timedout" or status == "cancelled" then
-            -- Candidate declined or timed out: Immediately unlock reserved role and utility flags!
+            -- Candidate declined, timed out, or cancelled: Immediately unlock reserved role and utility flags!
             pendingInvites[applicantID] = nil
             Logger:Warn("RESILIENCE", format("Invited candidate '%s' %s! Reserved %s slot & utility flags recovered.", pending.name, status, pending.role))
             
@@ -385,6 +388,24 @@ function Core:OnApplicantUpdated(applicantID)
         elseif status == "inviteaccepted" then
             Logger:Info("RESILIENCE", format("Candidate '%s' accepted invitation!", pending.name))
         end
+        return
+    end
+
+    -- 2. Check if this is the currently showcased candidate (not yet invited)
+    if currentTopCandidate and currentTopCandidate.applicantID == applicantID then
+        if status ~= "applied" then
+            Logger:Info("QUEUE", format("Showcased applicant '%s' is no longer applied (%s). Clearing card...", currentTopCandidate.name or "Applicant", status or "cancelled"))
+            currentTopCandidate = nil
+            ns.UI:ClearCandidateCard()
+            Core:EvaluateQueue()
+            Core:UpdateUI()
+            return
+        end
+    end
+
+    -- 3. If any other applicant changed status (newly applied, cancelled, or updated), re-evaluate queue
+    if not next(pendingInvites) and (ns.CurrentState == ns.States.LISTED or ns.CurrentState == ns.States.ASSEMBLING) then
+        Core:EvaluateQueue()
     end
 end
 
@@ -622,6 +643,17 @@ eventFrame:SetScript("OnUpdate", function(self, elapsed)
     if lastTick >= 1.0 then
         lastTick = 0
         if isStopwatchRunning then
+            -- Verify currently showcased candidate freshness
+            if currentTopCandidate and currentTopCandidate.applicantID then
+                local info = ns.LFGService:GetApplicantInfo(currentTopCandidate.applicantID)
+                if not info or info.applicationStatus ~= "applied" or info.isStale then
+                    currentTopCandidate = nil
+                    ns.UI:ClearCandidateCard()
+                    Core:EvaluateQueue()
+                end
+            elseif not next(pendingInvites) and (ns.CurrentState == ns.States.LISTED or ns.CurrentState == ns.States.ASSEMBLING) then
+                Core:EvaluateQueue()
+            end
             Core:UpdateUI()
         end
     end

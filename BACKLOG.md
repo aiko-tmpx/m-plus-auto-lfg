@@ -158,5 +158,23 @@ This document tracks identified bugs, edge cases, and feature refinements to be 
 
 ---
 
+### [x] Task 11: Real-Time Cancelled Applicant Eviction & Freshness Guards
+* **Status:** Completed
+* **Reported Behavior:**
+  An applicant ("Соланс") whose application had been cancelled in Blizzard's Premade Groups window (`Canceled` in red) was still displayed on the `MPlusAutoLFG` HUD card as "NEXT QUALIFIED APPLICANT" with an active "Invite" button.
+* **Root Cause:**
+  1. `Core:OnApplicantUpdated(applicantID)` only processed candidates present in `pendingInvites`. When a showcased candidate who had not yet been invited cancelled, the event was ignored.
+  2. `Core:EvaluateQueue()` accepted `appInfo.applicationStatus == "none"` in addition to `"applied"`.
+  3. The 1.0s periodic ticker in `Core.lua` only called `Core:UpdateUI()`, never validating candidate freshness or re-evaluating the queue.
+  4. `UI:OnInviteClicked` lacked a pre-flight status check before sending hardware invites.
+* **Changes Made:**
+  1. In `Core:OnApplicantUpdated`: added check for `currentTopCandidate`. If the updated applicant is currently showcased and their status is no longer `"applied"`, immediately clears `currentTopCandidate`, clears the card (`ns.UI:ClearCandidateCard()`), re-evaluates the queue, and refreshes the UI.
+  2. In `Core:EvaluateQueue()`: strictly enforces `appInfo.applicationStatus == "applied"` and `not appInfo.isStale`, and skips any applicant with `pendingApplicationStatus == "cancelled" / "declined" / "timedout"`.
+  3. In `Core.lua` periodic ticker: every 1.0s, checks if `currentTopCandidate` is still active (`"applied"` and not stale); if not, immediately clears and re-evaluates. If no candidate is showcased, re-evaluates the queue.
+  4. In `UI:OnInviteClicked`: added real-time pre-flight validation preventing invites to candidates who are no longer active.
+  5. Verified all Lua files pass Lua 5.1 AST syntax checks via `luaparse`.
+
+---
+
 ## Execution Order
-All tasks 1 through 10 are completed and validated.
+All tasks 1 through 11 are completed and validated.
