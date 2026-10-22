@@ -279,11 +279,6 @@ function Core:EvaluateQueue()
         return
     end
 
-    -- Guard: Keystone mismatch halts automated candidate display
-    if self.isKeystoneMismatch then
-        return
-    end
-
     -- Guard: If an invitation is currently pending, keep card locked on the invited candidate
     if next(pendingInvites) then
         return
@@ -497,39 +492,31 @@ end
 ---Refresh active keystone details and sync with active Premade Groups listing
 function Core:RefreshKeystoneInfo()
     local bagMapID, bagKeyLevel, bagDungeonName, bagIcon, bagActID = ns.LFGService:GetOwnedKeystoneInfo()
-    local hasListing, listMapID, listKeyLevel, listDungeonName, listIcon, listReqIlvl, listActID = ns.LFGService:GetActiveListingDetails()
+    local hasListing, listMapID, listKeyLevel, listDungeonName, listIcon, isMPlus, listActID, listTitle = ns.LFGService:GetActiveListingDetails()
 
     if hasListing then
-        activeKeystone.challengeMapID = listMapID > 0 and listMapID or bagMapID
-        activeKeystone.keystoneLevel = listKeyLevel > 0 and listKeyLevel or bagKeyLevel
-        activeKeystone.dungeonName = (listDungeonName and listDungeonName ~= "" and listDungeonName ~= "Unknown Dungeon") and listDungeonName or bagDungeonName
-        activeKeystone.iconTexture = listIcon or bagIcon
-        activeKeystone.activityID = listActID > 0 and listActID or bagActID
-        activeKeystone.requiredItemLevel = listReqIlvl
+        -- Only proceed with matchmaking if the queued difficulty is Mythic+
+        if isMPlus then
+            activeKeystone.challengeMapID = listMapID > 0 and listMapID or bagMapID
+            activeKeystone.keystoneLevel = listKeyLevel > 0 and listKeyLevel or (bagKeyLevel > 0 and bagKeyLevel or 2)
+            activeKeystone.dungeonName = (listDungeonName and listDungeonName ~= "" and listDungeonName ~= "Unknown Dungeon") and listDungeonName or bagDungeonName
+            activeKeystone.iconTexture = listIcon or bagIcon
+            activeKeystone.activityID = listActID > 0 and listActID or bagActID
+            activeKeystone.isMPlusQueue = true
 
-        -- Check keystone mismatch (listed key differs from bag key)
-        if bagKeyLevel > 0 and listKeyLevel > 0 and bagKeyLevel ~= listKeyLevel then
-            self.isKeystoneMismatch = true
-            self.mismatchReason = format("Listed key (+%d) != Bag key (+%d)", listKeyLevel, bagKeyLevel)
-        elseif bagMapID > 0 and listMapID > 0 and bagMapID ~= listMapID then
-            self.isKeystoneMismatch = true
-            self.mismatchReason = format("Listed dungeon != Bag dungeon")
-        elseif bagKeyLevel == 0 and listKeyLevel > 0 then
-            self.isKeystoneMismatch = true
-            self.mismatchReason = "No keystone in bags"
-        else
-            self.isKeystoneMismatch = false
-            self.mismatchReason = nil
-        end
-
-        -- If a keystone mismatch is detected, pause matchmaking
-        if self.isKeystoneMismatch then
-            if ns.CurrentState == ns.States.LISTED or ns.CurrentState == ns.States.ASSEMBLING then
-                self:SetState(ns.States.IDLE, "Paused: Keystone mismatch detected")
-                self:StopStopwatch()
+            -- Format clean display title: draw Key + Title of Grp in the window
+            local dName = (activeKeystone.dungeonName and activeKeystone.dungeonName ~= "Unknown Dungeon") and activeKeystone.dungeonName or "Dungeon"
+            if listTitle and listTitle ~= "" then
+                if listTitle:lower():find(dName:lower(), 1, true) then
+                    activeKeystone.displayTitle = listTitle
+                else
+                    activeKeystone.displayTitle = format("%s • %s", listTitle, dName)
+                end
+            else
+                activeKeystone.displayTitle = format("%s +%d", dName, activeKeystone.keystoneLevel)
             end
-        else
-            -- Auto-attach if idle and no mismatch
+
+            -- Auto-attach if idle
             if ns.CurrentState == ns.States.IDLE then
                 self:StartStopwatch()
                 local rosterContext = self:GetRosterContext()
@@ -537,16 +524,33 @@ function Core:RefreshKeystoneInfo()
                 self:SetState(nextState, "Attached to active Premade Groups listing")
                 self:EvaluateQueue()
             end
+        else
+            -- Non-M+ Listing (e.g. Raid, Delve, Regular Mythic, Heroic)
+            activeKeystone.isMPlusQueue = false
+            activeKeystone.displayTitle = (listTitle and listTitle ~= "") and listTitle or "Non-M+ Listing"
+            if ns.CurrentState == ns.States.LISTED or ns.CurrentState == ns.States.ASSEMBLING then
+                self:SetState(ns.States.IDLE, "Stopped: Not a Mythic+ listing")
+                self:StopStopwatch()
+            end
         end
     else
+        -- Not listed: show bag keystone
         activeKeystone.challengeMapID = bagMapID
         activeKeystone.keystoneLevel = bagKeyLevel
         activeKeystone.dungeonName = bagDungeonName
         activeKeystone.iconTexture = bagIcon
         activeKeystone.activityID = bagActID
-        self.isKeystoneMismatch = false
-        self.mismatchReason = nil
+        activeKeystone.isMPlusQueue = false
+        if bagDungeonName and bagDungeonName ~= "" and bagDungeonName ~= "Unknown Dungeon" then
+            activeKeystone.displayTitle = format("%s +%d", bagDungeonName, bagKeyLevel or 2)
+        else
+            activeKeystone.displayTitle = "No Keystone Found"
+        end
     end
+
+    -- Clear mismatch state completely (no blocking / disabling)
+    self.isKeystoneMismatch = false
+    self.mismatchReason = nil
 end
 
 ---Start automated matchmaking listing
@@ -558,13 +562,8 @@ function Core:StartMatchmaking()
 
     self:RefreshKeystoneInfo()
 
-    if self.isKeystoneMismatch then
-        Logger:Warn("LISTING", format("Cannot start matchmaking: %s.", self.mismatchReason or "Keystone mismatch"))
-        return
-    end
-
-    -- 1. If group is already listed in Premade Groups, attach immediately
-    if ns.LFGService:HasActiveListing() then
+    -- 1. If group is already listed in Premade Groups and is M+, attach immediately
+    if ns.LFGService:HasActiveListing() and activeKeystone.isMPlusQueue then
         self:StartStopwatch()
         local rosterContext = self:GetRosterContext()
         local nextState = (rosterContext.totalCount > 1) and ns.States.ASSEMBLING or ns.States.LISTED
@@ -573,7 +572,7 @@ function Core:StartMatchmaking()
         self:UpdateUI()
         local dName = (activeKeystone.dungeonName and activeKeystone.dungeonName ~= "Unknown Dungeon") and activeKeystone.dungeonName or "Dungeon"
         local kLvl = (activeKeystone.keystoneLevel and activeKeystone.keystoneLevel > 0) and ("+" .. activeKeystone.keystoneLevel) or ""
-        Logger:Info("QUEUE", format("Connected to active Premade Groups listing for %s %s. Monitoring applicants (Debug: %s)...", dName, kLvl, ns.IsDebugMode() and "|cff00ff00ON|r" or "OFF"))
+        Logger:Info("QUEUE", format("Connected to active Premade Groups listing for %s %s. Monitoring applicants...", dName, kLvl))
         return
     end
 
@@ -643,7 +642,8 @@ function Core:UpdateUI()
         activeKeystone.iconTexture,
         ns.CurrentState,
         elapsed,
-        rosterContext.requiredItemLevel
+        activeKeystone.displayTitle,
+        activeKeystone.isMPlusQueue
     )
 
     ns.UI:UpdateUtilityStatus(rosterContext)

@@ -3,7 +3,7 @@
     File: UI.lua
     Description: Modern Blizzard Dragonflight / The War Within (TWW) HUD styling.
                  Uses native indicator textures, unboxed 5-role party layout, clean text utilities (BL / CR),
-                 rules mode toggle, native settings integration, and leader/mismatch safety guards.
+                 rules mode toggle, native settings integration, and streamlined candidate showcase.
 ]]
 
 local addonName, ns = ...
@@ -74,7 +74,7 @@ function UI:CreateMainHUD()
     -- Modern Dragonflight / The War Within (TWW) dark slate canvas
     local f = CreateFrame("Frame", "MPlusAutoLFGMainFrame", UIParent)
     mainFrame = f
-    f:SetSize(350, 296)
+    f:SetSize(350, 276)
     f:SetFrameStrata("DIALOG")
     f:SetToplevel(true)
     f:SetClampedToScreen(true)
@@ -138,14 +138,12 @@ function UI:CreateMainHUD()
     f.keyIcon = keyIcon
 
     local dungeonText = f:CreateFontString(nil, "OVERLAY", "GameFontNormalLarge")
-    dungeonText:SetPoint("TOPLEFT", keyIcon, "TOPRIGHT", 10, 0)
+    dungeonText:SetPoint("LEFT", keyIcon, "RIGHT", 10, 0)
+    dungeonText:SetPoint("RIGHT", timerText, "LEFT", -10, 0)
+    dungeonText:SetJustifyH("LEFT")
+    dungeonText:SetWordWrap(false)
     dungeonText:SetText("No Keystone Found")
     f.dungeonText = dungeonText
-
-    local ilvlText = f:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
-    ilvlText:SetPoint("TOPLEFT", dungeonText, "BOTTOMLEFT", 0, -3)
-    ilvlText:SetText("Required ilvl: --")
-    f.ilvlText = ilvlText
 
     local timerText = f:CreateFontString(nil, "OVERLAY", "GameFontNormalLarge")
     timerText:SetPoint("TOPRIGHT", f, "TOPRIGHT", -14, -34)
@@ -164,19 +162,10 @@ function UI:CreateMainHUD()
     statusIcon:SetTexture("Interface\\Common\\Indicator-Gray")
     f.statusIcon = statusIcon
 
-    -- Warning Banner (Party Leader required or Keystone Mismatch)
-    local warningText = f:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
-    warningText:SetPoint("TOPLEFT", f, "TOPLEFT", 14, -73)
-    warningText:SetPoint("TOPRIGHT", f, "TOPRIGHT", -14, -73)
-    warningText:SetJustifyH("LEFT")
-    warningText:SetText("")
-    warningText:Hide()
-    f.warningText = warningText
-
     -- Section divider 1
     local div1 = f:CreateTexture(nil, "ARTWORK")
-    div1:SetPoint("TOPLEFT", f, "TOPLEFT", 14, -86)
-    div1:SetPoint("TOPRIGHT", f, "TOPRIGHT", -14, -86)
+    div1:SetPoint("TOPLEFT", f, "TOPLEFT", 14, -76)
+    div1:SetPoint("TOPRIGHT", f, "TOPRIGHT", -14, -76)
     div1:SetHeight(1)
     div1:SetColorTexture(0.18, 0.18, 0.22, 0.6)
 
@@ -195,7 +184,7 @@ function UI:CreateMainHUD()
     for i = 1, 5 do
         local slot = CreateFrame("Frame", nil, f)
         slot:SetSize(22, 22)
-        slot:SetPoint("TOPLEFT", f, "TOPLEFT", 14 + (i - 1) * 25, -92)
+        slot:SetPoint("TOPLEFT", f, "TOPLEFT", 14 + (i - 1) * 25, -82)
 
         local slotIcon = slot:CreateTexture(nil, "ARTWORK")
         slotIcon:SetAllPoints(slot)
@@ -225,7 +214,7 @@ function UI:CreateMainHUD()
     -- Clean Text Utilities: Bloodlust (BL) and Combat Res (CR)
     local blFrame = CreateFrame("Frame", nil, f)
     blFrame:SetSize(28, 20)
-    blFrame:SetPoint("LEFT", f, "TOPLEFT", 148, -103)
+    blFrame:SetPoint("LEFT", f, "TOPLEFT", 148, -93)
 
     local blText = blFrame:CreateFontString(nil, "OVERLAY", "GameFontHighlight")
     blText:SetAllPoints(blFrame)
@@ -273,7 +262,7 @@ function UI:CreateMainHUD()
     -- Middle Section B: Rules Mode Switcher & Settings Shortcut
     ---------------------------------------------------------------------------
     local rulesLabel = f:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
-    rulesLabel:SetPoint("LEFT", f, "TOPLEFT", 14, -127)
+    rulesLabel:SetPoint("LEFT", f, "TOPLEFT", 14, -114)
     rulesLabel:SetText("Rules:")
 
     -- Segmented Dual Buttons: [Custom] [Default]
@@ -371,7 +360,7 @@ function UI:CreateMainHUD()
 
     local configBtn = CreateFrame("Button", nil, f, "UIPanelButtonTemplate")
     configBtn:SetSize(68, 20)
-    configBtn:SetPoint("TOPRIGHT", f, "TOPRIGHT", -14, -117)
+    configBtn:SetPoint("TOPRIGHT", f, "TOPRIGHT", -14, -104)
     configBtn:SetText("Options")
     f.configBtn = configBtn
 
@@ -390,8 +379,8 @@ function UI:CreateMainHUD()
 
     -- Section divider 2
     local div2 = f:CreateTexture(nil, "ARTWORK")
-    div2:SetPoint("TOPLEFT", f, "TOPLEFT", 14, -143)
-    div2:SetPoint("TOPRIGHT", f, "TOPRIGHT", -14, -143)
+    div2:SetPoint("TOPLEFT", f, "TOPLEFT", 14, -128)
+    div2:SetPoint("TOPRIGHT", f, "TOPRIGHT", -14, -128)
     div2:SetHeight(1)
     div2:SetColorTexture(0.18, 0.18, 0.22, 0.6)
 
@@ -399,8 +388,8 @@ function UI:CreateMainHUD()
     -- Middle Section C: Next Qualified Applicant Showcase Card
     ---------------------------------------------------------------------------
     local candBox = CreateFrame("Frame", nil, f)
-    candBox:SetPoint("TOPLEFT", f, "TOPLEFT", 14, -150)
-    candBox:SetPoint("TOPRIGHT", f, "TOPRIGHT", -14, -150)
+    candBox:SetPoint("TOPLEFT", f, "TOPLEFT", 14, -134)
+    candBox:SetPoint("TOPRIGHT", f, "TOPRIGHT", -14, -134)
     candBox:SetHeight(94)
     f.candBox = candBox
 
@@ -442,23 +431,6 @@ function UI:CreateMainHUD()
     candExp:SetText("")
     f.candExp = candExp
 
-    -- Mismatch Dimming Overlay (Veil over middle sections when listed key differs from bag key)
-    local mismatchOverlay = CreateFrame("Frame", nil, f)
-    mismatchOverlay:SetPoint("TOPLEFT", f, "TOPLEFT", 10, -88)
-    mismatchOverlay:SetPoint("BOTTOMRIGHT", candBox, "BOTTOMRIGHT", 2, -2)
-    mismatchOverlay:SetFrameLevel(candBox:GetFrameLevel() + 5)
-
-    local overlayTex = mismatchOverlay:CreateTexture(nil, "BACKGROUND")
-    overlayTex:SetAllPoints(mismatchOverlay)
-    overlayTex:SetColorTexture(0.02, 0.02, 0.04, 0.72)
-
-    local overlayText = mismatchOverlay:CreateFontString(nil, "OVERLAY", "GameFontDisable")
-    overlayText:SetPoint("CENTER", mismatchOverlay, "CENTER", 0, 0)
-    overlayText:SetText("LISTING MISMATCH - MATCHMAKING PAUSED")
-    mismatchOverlay.text = overlayText
-    mismatchOverlay:Hide()
-    f.mismatchOverlay = mismatchOverlay
-
     ---------------------------------------------------------------------------
     -- Bottom Section: Unified Action Button (UIPanelButtonTemplate)
     ---------------------------------------------------------------------------
@@ -473,9 +445,6 @@ function UI:CreateMainHUD()
 
     inviteBtn:SetScript("OnClick", function(self)
         if ns.Core and not ns.Core:IsLeader() then
-            return
-        end
-        if ns.Core and ns.Core.isKeystoneMismatch then
             return
         end
 
@@ -504,9 +473,6 @@ function UI:OnInviteClicked(candidate)
         return
     end
     if ns.Core and not ns.Core:IsLeader() then
-        return
-    end
-    if ns.Core and ns.Core.isKeystoneMismatch then
         return
     end
 
@@ -572,20 +538,24 @@ end
 -------------------------------------------------------------------------------
 -- Header & Status Updater
 -------------------------------------------------------------------------------
-function UI:UpdateHeader(challengeMapID, keystoneLevel, dungeonName, iconTexture, currentState, elapsed, requiredItemLevel)
+function UI:UpdateHeader(challengeMapID, keystoneLevel, dungeonName, iconTexture, currentState, elapsed, displayTitle, isMPlusQueue)
     if not mainFrame then self:CreateMainHUD() end
     local f = mainFrame
     if not f then return end
 
-    -- Update keystone icon
+    -- Update keystone icon (never desaturated on friend keys)
     if iconTexture and iconTexture ~= 0 then
         f.keyIcon:SetTexture(iconTexture)
     else
         f.keyIcon:SetTexture(525134)
     end
+    f.keyIcon:SetDesaturated(false)
+    f.keyIcon:SetAlpha(1.0)
 
-    -- Update dungeon title and keystone level
-    if dungeonName and dungeonName ~= "" and dungeonName ~= "Unknown Dungeon" then
+    -- Update dungeon title: draw Key + Title of Grp in the addon window
+    if displayTitle and displayTitle ~= "" then
+        f.dungeonText:SetText(displayTitle)
+    elseif dungeonName and dungeonName ~= "" and dungeonName ~= "Unknown Dungeon" then
         if keystoneLevel and keystoneLevel > 0 then
             f.dungeonText:SetText(format("%s +%d", dungeonName, keystoneLevel))
         else
@@ -593,13 +563,6 @@ function UI:UpdateHeader(challengeMapID, keystoneLevel, dungeonName, iconTexture
         end
     else
         f.dungeonText:SetText("No Keystone Found")
-    end
-
-    -- Update required item level
-    if requiredItemLevel and requiredItemLevel > 0 then
-        f.ilvlText:SetText(format("Required ilvl: |cffffffff%d|r", requiredItemLevel))
-    else
-        f.ilvlText:SetText("Required ilvl: --")
     end
 
     -- Update elapsed timer
@@ -613,7 +576,12 @@ function UI:UpdateHeader(challengeMapID, keystoneLevel, dungeonName, iconTexture
 
     -- Status icon & label
     local state = currentState or ns.CurrentState or (ns.States and ns.States.IDLE) or "IDLE"
-    if ns.States and state == ns.States.LISTED then
+    local hasListing = ns.LFGService and ns.LFGService:HasActiveListing()
+
+    if hasListing and isMPlusQueue == false then
+        f.statusIcon:SetTexture("Interface\\Common\\Indicator-Gray")
+        f.statusText:SetText("|cffff8800Not M+|r")
+    elseif ns.States and state == ns.States.LISTED then
         f.statusIcon:SetTexture("Interface\\Common\\Indicator-Green")
         f.statusText:SetText("|cff00ff00Scanning Queue|r")
     elseif ns.States and state == ns.States.ASSEMBLING then
@@ -627,64 +595,29 @@ function UI:UpdateHeader(challengeMapID, keystoneLevel, dungeonName, iconTexture
         f.statusText:SetText("|cff888888IDLE|r")
     end
 
-    -- Leader, Raid & Keystone Mismatch Guards
-    local isRaid = IsInRaid and IsInRaid()
-    local isLeader = true
-    if ns.Core and ns.Core.IsLeader then
-        isLeader = ns.Core:IsLeader()
-    end
+    -- Mode buttons
+    if f.customModeBtn then f.customModeBtn:Enable() end
+    if f.defaultModeBtn then f.defaultModeBtn:Enable() end
+    self:UpdateModeButtons()
 
-    local isMismatch = false
-    local mismatchReason = nil
-    if ns.Core then
-        isMismatch = ns.Core.isKeystoneMismatch
-        mismatchReason = ns.Core.mismatchReason
-    end
-
-    if isRaid then
-        f.warningText:SetText("|cffff4444In Raid Group: Convert to 5-man Party|r")
-        f.warningText:Show()
-    elseif not isLeader then
-        f.warningText:SetText("|cffffaa00Only party leader can manage matchmaking|r")
-        f.warningText:Show()
-    elseif isMismatch then
-        f.warningText:SetText(format("|cffff4444%s|r", mismatchReason or "Listing Mismatch: Listed key != Bag key"))
-        f.warningText:Show()
-    else
-        f.warningText:SetText("")
-        f.warningText:Hide()
-    end
-
-    -- Visual Desaturation & Dimming State
-    if isMismatch then
-        f.keyIcon:SetDesaturated(true)
-        f.keyIcon:SetAlpha(0.45)
-        f.statusIcon:SetTexture("Interface\\Common\\Indicator-Gray")
-        f.statusText:SetText("|cffff4444MISMATCH|r")
-        if f.mismatchOverlay then f.mismatchOverlay:Show() end
-        if f.customModeBtn then f.customModeBtn:Disable() end
-        if f.defaultModeBtn then f.defaultModeBtn:Disable() end
-    else
-        f.keyIcon:SetDesaturated(false)
-        f.keyIcon:SetAlpha(1.0)
-        if f.mismatchOverlay then f.mismatchOverlay:Hide() end
-        if f.customModeBtn then f.customModeBtn:Enable() end
-        if f.defaultModeBtn then f.defaultModeBtn:Enable() end
-        self:UpdateModeButtons()
-    end
-
-    -- If no candidate is actively displayed, sync the button
+    -- Primary action button state when no candidate is actively displayed
     if not currentCandidate then
+        local isRaid = IsInRaid and IsInRaid()
+        local isLeader = true
+        if ns.Core and ns.Core.IsLeader then
+            isLeader = ns.Core:IsLeader()
+        end
+
         if isRaid then
             f.inviteBtn:Disable()
             f.inviteBtn:SetText("Raid Group")
         elseif not isLeader then
             f.inviteBtn:Disable()
             f.inviteBtn:SetText("Leader Only")
-        elseif isMismatch then
+        elseif hasListing and isMPlusQueue == false then
             f.inviteBtn:Disable()
-            f.inviteBtn:SetText("Listing Mismatch")
-        elseif not ns.LFGService:HasActiveListing() and (ns.States and state == ns.States.IDLE) then
+            f.inviteBtn:SetText("Not an M+ Queue")
+        elseif not hasListing and (ns.States and state == ns.States.IDLE) then
             f.inviteBtn:Enable()
             f.inviteBtn:SetText("Open LFG Window")
         else
@@ -722,24 +655,6 @@ function UI:UpdateUtilityStatus(rosterContext)
     local totalTanks = (rosterContext.roles and rosterContext.roles["TANK"]) or #tanks
     local totalHealers = (rosterContext.roles and rosterContext.roles["HEALER"]) or #healers
     local totalDPS = (rosterContext.roles and rosterContext.roles["DAMAGER"]) or #dps
-
-    -- If keystone mismatch is active, desaturate and dim all role icons and utilities
-    local isMismatch = ns.Core and ns.Core.isKeystoneMismatch
-    if isMismatch then
-        for i = 1, 5 do
-            local slot = f.roleSlots[i]
-            if slot and slot.icon then
-                slot.icon:SetDesaturated(true)
-                slot.icon:SetAlpha(0.25)
-                slot.tooltipText = "Matchmaking Paused (Listing Mismatch)"
-            end
-        end
-        f.blFrame.text:SetText("|cff666666BL|r")
-        f.blFrame.tooltip = "Bloodlust / Heroism (Matchmaking Paused)"
-        f.crFrame.text:SetText("|cff666666CR|r")
-        f.crFrame.tooltip = "Combat Resurrection (Matchmaking Paused)"
-        return
-    end
 
     -- Slot 1: Tank
     local tankSlot = f.roleSlots[1]
@@ -831,7 +746,6 @@ function UI:UpdateCandidateCard(candidate, isInvited)
     end
 
     local isLeader = (not ns.Core or not ns.Core.IsLeader) or ns.Core:IsLeader()
-    local isMismatch = ns.Core and ns.Core.isKeystoneMismatch
 
     -- Display candidate information
     local classColor = RAID_CLASS_COLORS[candidate.classFilename]
@@ -850,8 +764,8 @@ function UI:UpdateCandidateCard(candidate, isInvited)
     -- Spec Icon
     if candidate.specIcon and candidate.specIcon > 0 then
         f.candSpecIcon:SetTexture(candidate.specIcon)
-        f.candSpecIcon:SetDesaturated(isMismatch == true)
-        f.candSpecIcon:SetAlpha(isMismatch and 0.35 or 1.0)
+        f.candSpecIcon:SetDesaturated(false)
+        f.candSpecIcon:SetAlpha(1.0)
         f.candSpecIcon:Show()
         f.candName:SetPoint("TOPLEFT", f.candSpecIcon, "TOPRIGHT", 8, 2)
     else
@@ -897,9 +811,6 @@ function UI:UpdateCandidateCard(candidate, isInvited)
     elseif not isLeader then
         f.inviteBtn:Disable()
         f.inviteBtn:SetText("Leader Only")
-    elseif isMismatch then
-        f.inviteBtn:Disable()
-        f.inviteBtn:SetText("Listing Mismatch")
     elseif isInvited then
         f.inviteBtn:Disable()
         f.inviteBtn:SetText("INVITED")
@@ -926,7 +837,7 @@ function UI:ClearCandidateCard()
 
     local isRaid = IsInRaid and IsInRaid()
     local isLeader = (not ns.Core or not ns.Core.IsLeader) or ns.Core:IsLeader()
-    local isMismatch = ns.Core and ns.Core.isKeystoneMismatch
+    local hasListing = ns.LFGService and ns.LFGService:HasActiveListing()
 
     if isRaid then
         f.inviteBtn:Disable()
@@ -934,10 +845,7 @@ function UI:ClearCandidateCard()
     elseif not isLeader then
         f.inviteBtn:Disable()
         f.inviteBtn:SetText("Leader Only")
-    elseif isMismatch then
-        f.inviteBtn:Disable()
-        f.inviteBtn:SetText("Listing Mismatch")
-    elseif not ns.LFGService:HasActiveListing() and (ns.CurrentState == ns.States.IDLE) then
+    elseif not hasListing and (ns.CurrentState == ns.States.IDLE) then
         f.inviteBtn:Enable()
         f.inviteBtn:SetText("Open LFG Window")
     else

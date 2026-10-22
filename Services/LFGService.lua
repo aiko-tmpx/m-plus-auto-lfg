@@ -412,70 +412,47 @@ end
 
 ---Get parsed details about the active listing
 ---@return boolean hasListing, number challengeMapID, number keystoneLevel, string dungeonName, number|string iconTexture, number requiredIlvl, number activityID
+---Get parsed details about the active listing
+---@return boolean hasListing, number challengeMapID, number keystoneLevel, string dungeonName, number|string iconTexture, boolean isMythicPlus, number activityID, string groupTitle
 function LFGService:GetActiveListingDetails()
     if not self:HasActiveListing() then
-        return false, 0, 0, "", 525134, 0, 0
+        return false, 0, 0, "", 525134, false, 0, ""
     end
 
     local entryInfo = self:GetActiveListingInfo()
     if not entryInfo then
-        return false, 0, 0, "", 525134, 0, 0
+        return false, 0, 0, "", 525134, false, 0, ""
     end
 
     local activityID = entryInfo.activityID or 0
     if (not activityID or activityID == 0) and entryInfo.activityIDs and entryInfo.activityIDs[1] then
         activityID = entryInfo.activityIDs[1]
     end
-    local requiredIlvl = entryInfo.requiredItemLevel or 0
+
+    local isMythicPlus = false
     local dungeonName = "Unknown Dungeon"
     local challengeMapID = 0
     local iconTexture = 525134
     local keyLevel = 0
-
-    -- Extract group listing name / title with UI widget fallbacks if unpopulated/delayed
-    local title = entryInfo.name
-    if (not title or title == "") and LFGListFrame and LFGListFrame.ApplicationViewer and LFGListFrame.ApplicationViewer.EntryName and LFGListFrame.ApplicationViewer.EntryName.GetText then
-        title = LFGListFrame.ApplicationViewer.EntryName:GetText()
-    end
-    if (not title or title == "") and LFGListFrame and LFGListFrame.EntryCreation and LFGListFrame.EntryCreation.Name and LFGListFrame.EntryCreation.Name.GetText then
-        title = LFGListFrame.EntryCreation.Name:GetText()
-    end
-
-    if title and type(title) == "string" and title ~= "" then
-        -- 1. Explicit "+12" or "+ 12"
-        local matchedLevel = title:match("%+%s*(%d+)")
-        if matchedLevel then
-            keyLevel = tonumber(matchedLevel) or 0
-        end
-
-        -- 2. Explicit "12+" or "12 +"
-        if keyLevel == 0 then
-            matchedLevel = title:match("(%d+)%s*%+")
-            if matchedLevel then
-                keyLevel = tonumber(matchedLevel) or 0
-            end
-        end
-
-        -- 3. Standalone numbers between 2 and 35 (e.g. "12", "12 Den", "Den 12", "[12]", "(12)")
-        if keyLevel == 0 then
-            for numStr in title:gmatch("%f[%d](%d+)%f[%D]") do
-                local num = tonumber(numStr)
-                if num and num >= 2 and num <= 35 then
-                    local isScoreOrIlvl = title:match(numStr .. "%s*[kK]") or title:match(numStr .. "%s*[iI][lL]")
-                    if not isScoreOrIlvl then
-                        keyLevel = num
-                        break
-                    end
-                end
-            end
-        end
-    end
+    local groupTitle = entryInfo.name or ""
 
     if activityID > 0 and C_LFGList.GetActivityInfoTable then
         local actInfo = C_LFGList.GetActivityInfoTable(activityID)
         if actInfo then
-            dungeonName = actInfo.shortName or actInfo.fullName or dungeonName
-            challengeMapID = actInfo.mapID or actInfo.groupFinderActivityGroupID or 0
+            isMythicPlus = (actInfo.isMythicPlusActivity == true)
+
+            -- Clean dungeon name from groupID or fullName (avoiding difficulty string in shortName)
+            if actInfo.groupID and C_LFGList.GetActivityGroupInfo then
+                local groupName = C_LFGList.GetActivityGroupInfo(actInfo.groupID)
+                if groupName and groupName ~= "" then
+                    dungeonName = groupName
+                end
+            end
+            if dungeonName == "Unknown Dungeon" and actInfo.fullName then
+                dungeonName = actInfo.fullName:gsub("%s*%(.*%)", "")
+            end
+
+            challengeMapID = actInfo.groupFinderActivityGroupID or actInfo.mapID or 0
         end
     end
 
@@ -489,7 +466,38 @@ function LFGService:GetActiveListingDetails()
         end
     end
 
-    return true, challengeMapID, keyLevel, dungeonName, iconTexture, requiredIlvl, activityID
+    -- Parse key level strictly from group title (entryInfo.name)
+    if groupTitle and type(groupTitle) == "string" and groupTitle ~= "" then
+        -- 1. Explicit "+12" or "+ 12"
+        local matchedLevel = groupTitle:match("%+%s*(%d+)")
+        if matchedLevel then
+            keyLevel = tonumber(matchedLevel) or 0
+        end
+
+        -- 2. Explicit "12+" or "12 +"
+        if keyLevel == 0 then
+            matchedLevel = groupTitle:match("(%d+)%s*%+")
+            if matchedLevel then
+                keyLevel = tonumber(matchedLevel) or 0
+            end
+        end
+
+        -- 3. Standalone numbers between 2 and 35 (e.g. "12", "12 chill", "chill 12")
+        if keyLevel == 0 then
+            for numStr in groupTitle:gmatch("%f[%d](%d+)%f[%D]") do
+                local num = tonumber(numStr)
+                if num and num >= 2 and num <= 35 then
+                    local isScoreOrIlvl = groupTitle:match(numStr .. "%s*[kK]") or groupTitle:match(numStr .. "%s*[iI][lL]")
+                    if not isScoreOrIlvl then
+                        keyLevel = num
+                        break
+                    end
+                end
+            end
+        end
+    end
+
+    return true, challengeMapID, keyLevel, dungeonName, iconTexture, isMythicPlus, activityID, groupTitle
 end
 
 -------------------------------------------------------------------------------

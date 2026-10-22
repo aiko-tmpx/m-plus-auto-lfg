@@ -237,5 +237,35 @@ This document tracks identified bugs, edge cases, and feature refinements to be 
 
 ---
 
+### [x] Task 15: Friend-Key Support (Abolish Keystone Mismatch Blocking) & Streamlined HUD Window
+* **Status:** Completed
+* **Reported Behavior / Feature Requests:**
+  1. No point in disabling/blocking the window or desaturating when the active listing keystone differs from the leader's bag keystone. Groups frequently list a friend's or party member's keystone. The addon must adopt the active Premade Groups listing as the source of truth for matchmaking.
+  2. Gate matchmaking to Mythic+ difficulty only (`isMythicPlusActivity == true`). If a non-M+ activity is listed (Raid, Delve, regular Mythic, Heroic), keep matchmaking idle with button text `"Not an M+ Queue"`.
+  3. Streamline the HUD window:
+     - Remove `required ilvl` text (`f.ilvlText`).
+     - Remove extra listing descriptions, mismatch warning banners, and dimming veil overlay.
+     - In the top header: draw Key + Title of Group cleanly (`f.dungeonText`) next to `f.keyIcon`, alongside elapsed timer and status indicator.
+     - Keep only: timer, rules mode buttons (`[Custom]` `[Default]`), `[Options]`, candidate showcase card, and `[Invite]` button.
+* **Changes Made:**
+  1. In `Services/LFGService.lua`:
+     - Updated `LFGService:GetActiveListingDetails()` to verify `actInfo.isMythicPlusActivity == true`.
+     - Extracted clean dungeon name via `C_LFGList.GetActivityGroupInfo(actInfo.groupID)` or `actInfo.fullName:gsub("%s*%(.*%)", "")` (avoiding difficulty text in `actInfo.shortName`).
+     - Parsed `keyLevel` strictly from `groupTitle` (`entryInfo.name`), eliminating child widget fallback that captured applicant counter numbers (`Applicants (7)`).
+  2. In `Core.lua`:
+     - In `Core:RefreshKeystoneInfo()`: removed mismatch blocking, permanently cleared `self.isKeystoneMismatch = false`, adopted active listing when `isMPlus == true`, formatted clean `displayTitle = format("%s • %s", listTitle, dName)`, and set `isMPlusQueue = false` for non-M+ listings.
+     - Removed mismatch guards from `Core:EvaluateQueue()` and `Core:StartMatchmaking()`.
+     - Passed `activeKeystone.displayTitle` and `activeKeystone.isMPlusQueue` to `UI:UpdateHeader`.
+  3. In `UI.lua`:
+     - Resized main HUD to a compact 350x276.
+     - Removed `f.ilvlText`, `f.warningText`, and `f.mismatchOverlay`.
+     - Vertically centered `f.dungeonText` with `f.keyIcon` and bound horizontally to `timerText`.
+     - Updated `UI:UpdateHeader` signature and button states: `"Not an M+ Queue"` for non-M+ listings, `"Open LFG Window"` when idle with no listing, `"Invite"` when candidate ready.
+     - Kept `f.keyIcon`, role slots, and BL/CR utilities clean and fully active without mismatch desaturation.
+     - Removed mismatch guards from `UI:OnInviteClicked`, `UI:UpdateCandidateCard`, and `UI:ClearCandidateCard`.
+  4. Verified all 6 Lua files pass 100% Lua 5.1 AST syntax checks via `luaparse`, and passed all qualification and friend-key unit tests.
+
+---
+
 ## Execution Order
-All tasks 1 through 14 are completed and validated.
+All tasks 1 through 15 are completed and validated.
