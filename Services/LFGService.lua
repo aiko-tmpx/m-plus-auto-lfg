@@ -465,7 +465,7 @@ function LFGService:GetActiveListingDetails()
 end
 
 ---Parse Mythic+ keystone level from listing title string
----Enforces valid range [2, 50], rejects conflicting or invalid numbers (e.g. "+1", "+1 wer 3", "+10 +12")
+---Strict regex: matches '+<digits>' or '<digits>+' within range [2, 50]
 ---@param title string
 ---@return number keyLevel (0 if unparseable or invalid)
 function LFGService:ParseKeyLevelFromTitle(title)
@@ -479,69 +479,45 @@ function LFGService:ParseKeyLevelFromTitle(title)
     clean = clean:gsub("|T.-|t", "")
     clean = clean:gsub("|A.-|a", "")
 
-    -- 1. Explicit plus numbers: "+12", "+ 12", "12+", "12 +"
-    local plusMatches = {}
-    for numStr in clean:gmatch("%+%s*(%d+)") do
-        table.insert(plusMatches, tonumber(numStr))
-    end
-    for numStr in clean:gmatch("(%d+)%s*%+") do
-        table.insert(plusMatches, tonumber(numStr))
-    end
-
-    if #plusMatches > 0 then
-        local firstPlus = plusMatches[1]
-        for i = 2, #plusMatches do
-            if plusMatches[i] ~= firstPlus then
-                return 0 -- Conflicting plus numbers (e.g. "+10 +12")
-            end
+    -- Match explicit "+<digits>" or "<digits>+"
+    local matchStr = clean:match("%+%s*(%d+)") or clean:match("(%d+)%s*%+")
+    if not matchStr then
+        if ns.IsDebugMode and ns.IsDebugMode() then
+            ns.Logger:Debug("PARSER", format("ParseKeyLevelFromTitle: title='%s' -> no '+digits' pattern found -> returning 0", title))
         end
+        return 0
+    end
 
-        -- Key must be within valid range: 2 to 50 (e.g. "+1", "+0", "+55" are invalid)
-        if firstPlus < 2 or firstPlus > 50 then
+    local level = tonumber(matchStr)
+    if not level or level < 2 or level > 50 then
+        if ns.IsDebugMode and ns.IsDebugMode() then
+            ns.Logger:Debug("PARSER", format("ParseKeyLevelFromTitle: title='%s' -> level %s outside valid range [2..50] -> returning 0", title, tostring(level)))
+        end
+        return 0
+    end
+
+    -- Ensure no conflicting second plus number (e.g. "+10 +12")
+    for second in clean:gmatch("%+%s*(%d+)") do
+        if tonumber(second) ~= level then
+            if ns.IsDebugMode and ns.IsDebugMode() then
+                ns.Logger:Debug("PARSER", format("ParseKeyLevelFromTitle: conflicting plus numbers (%d vs %s) in '%s' -> returning 0", level, second, title))
+            end
             return 0
         end
-
-        -- Check for other contradictory standalone numbers (e.g. "+12 wer 15")
-        for numStr in clean:gmatch("%f[%d](%d+)%f[%D]") do
-            local n = tonumber(numStr)
-            if n and n ~= firstPlus then
-                local isScoreOrIlvl = clean:match(numStr .. "%s*[kK]")
-                    or clean:match(numStr .. "%s*[iI][lL]")
-                    or clean:match("[iI][lL]%s*" .. numStr)
-                    or (n > 50)
-                local isChest = clean:match(numStr .. "%s*[cC][hH][eE][sS][tT]")
-                if not isScoreOrIlvl and not isChest then
-                    return 0 -- Contradictory number found
-                end
+    end
+    for second in clean:gmatch("(%d+)%s*%+") do
+        if tonumber(second) ~= level then
+            if ns.IsDebugMode and ns.IsDebugMode() then
+                ns.Logger:Debug("PARSER", format("ParseKeyLevelFromTitle: conflicting plus numbers (%d vs %s) in '%s' -> returning 0", level, second, title))
             end
-        end
-
-        return firstPlus
-    end
-
-    -- 2. Standalone numbers without plus (e.g. "12 chill", "Den 12")
-    local candidateNumbers = {}
-    for numStr in clean:gmatch("%f[%d](%d+)%f[%D]") do
-        local n = tonumber(numStr)
-        if n then
-            local isScoreOrIlvl = clean:match(numStr .. "%s*[kK]")
-                or clean:match(numStr .. "%s*[iI][lL]")
-                or clean:match("[iI][lL]%s*" .. numStr)
-                or (n > 50)
-            if not isScoreOrIlvl then
-                table.insert(candidateNumbers, n)
-            end
+            return 0
         end
     end
 
-    if #candidateNumbers == 1 then
-        local n = candidateNumbers[1]
-        if n >= 2 and n <= 50 then
-            return n
-        end
+    if ns.IsDebugMode and ns.IsDebugMode() then
+        ns.Logger:Debug("PARSER", format("ParseKeyLevelFromTitle: title='%s' -> parsedLevel=%d", title, level))
     end
-
-    return 0
+    return level
 end
 
 -------------------------------------------------------------------------------
