@@ -55,6 +55,18 @@ function LFGService:GetOwnedKeystoneInfo()
     -- If activityID was not returned directly, resolve from challengeMapID or available activities
     if (not activityID or activityID == 0) and challengeMapID and challengeMapID > 0 then
         activityID = self:FindActivityIDForMap(challengeMapID)
+    elseif (not challengeMapID or challengeMapID == 0) and activityID and activityID > 0 then
+        if C_LFGList and C_LFGList.GetActivityInfoTable then
+            local actInfo = C_LFGList.GetActivityInfoTable(activityID)
+            if actInfo then
+                if actInfo.mapID and actInfo.mapID > 0 then
+                    challengeMapID = actInfo.mapID
+                end
+                if actInfo.fullName and actInfo.fullName ~= "" and dungeonName == "Unknown Dungeon" then
+                    dungeonName = actInfo.fullName
+                end
+            end
+        end
     end
 
     return challengeMapID, keystoneLevel or 0, dungeonName, iconTexture, activityID or 0
@@ -503,6 +515,19 @@ function LFGService:GetApplicantMemberInfo(applicantID, memberIndex)
         specID = 0
     end
 
+    local specName = nil
+    local specIcon = nil
+    if specID and specID > 0 then
+        if GetSpecializationInfoByID then
+            local _, sName, _, sIcon = GetSpecializationInfoByID(specID)
+            specName = sName
+            specIcon = sIcon
+        end
+        if not specName and ns.Specializations and ns.Specializations[specID] then
+            specName = ns.Specializations[specID].name
+        end
+    end
+
     local hasBL = ns.HasBloodlust(classFilename)
     local hasCR = ns.HasCombatRes(classFilename)
 
@@ -513,6 +538,8 @@ function LFGService:GetApplicantMemberInfo(applicantID, memberIndex)
         classFilename   = classFilename,
         localizedClass  = localizedClass or classFilename,
         specID          = specID,
+        specName        = specName,
+        specIcon        = specIcon,
         role            = assignedRole,
         itemLevel       = itemLevel,
         dungeonScore    = dungeonScore,

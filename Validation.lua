@@ -60,7 +60,7 @@ end
 function ns.CheckItemLevel(candidate, rosterContext)
     local requiredIlvl = rosterContext.requiredItemLevel or 0
     local applicantIlvl = candidate.itemLevel or 0
-    local leaderIlvl = rosterContext.leaderItemLevel or 0
+    local leaderIlvl = rosterContext.leaderIlvl or rosterContext.leaderItemLevel or 0
 
     local isCustom = (MPlusAutoLFGDB and MPlusAutoLFGDB.rulesMode) == "CUSTOM"
     local customRules = MPlusAutoLFGDB and MPlusAutoLFGDB.customRules

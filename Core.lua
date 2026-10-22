@@ -187,6 +187,14 @@ function Core:GetRosterContext()
     if ns.HasBloodlust(playerClass) then hasBL = true end
     if ns.HasCombatRes(playerClass) then hasCR = true end
 
+    local currentSpecIdx = GetSpecialization and GetSpecialization()
+    if currentSpecIdx and currentSpecIdx > 0 and GetSpecializationInfo then
+        local pSpecID = GetSpecializationInfo(currentSpecIdx)
+        if pSpecID and pSpecID > 0 then
+            specs[pSpecID] = (specs[pSpecID] or 0) + 1
+        end
+    end
+
     -- 2. Scan Party Members (party1 to party4)
     local numGroupMembers = GetNumGroupMembers()
     if numGroupMembers > 1 then
@@ -249,6 +257,7 @@ function Core:GetRosterContext()
         hasCR = hasCR,
         totalCount = totalCount,
         leaderIlvl = leaderIlvl,
+        leaderItemLevel = leaderIlvl,
         targetKeyLevel = targetKey,
         requiredItemLevel = requiredIlvl,
         activityID = activeKeystone.activityID,
@@ -306,6 +315,10 @@ function Core:EvaluateQueue()
             local appInfo = ns.LFGService:GetApplicantInfo(applicantID)
             local isApplied = appInfo and appInfo.applicationStatus == "applied" and not appInfo.isStale
             local isPendingCancel = appInfo and (appInfo.pendingApplicationStatus == "cancelled" or appInfo.pendingApplicationStatus == "declined" or appInfo.pendingApplicationStatus == "timedout")
+            local numMembers = appInfo and appInfo.numMembers or 1
+            if numMembers > openSlots or numMembers > 1 then
+                isApplied = false
+            end
             if isApplied and not isPendingCancel then
                 -- Single-member applicant evaluation
                 local candidate = ns.LFGService:GetApplicantMemberInfo(applicantID, 1)
@@ -477,6 +490,7 @@ end
 ---@return boolean
 function Core:IsLeader()
     if not IsInGroup() then return true end
+    if IsInRaid and IsInRaid() then return false end
     return UnitIsGroupLeader("player") == true
 end
 
@@ -580,15 +594,16 @@ end
 ---Handle Blizzard LFG_LIST_ACTIVE_ENTRY_UPDATE
 function Core:OnActiveEntryUpdated()
     if ns.LFGService:HasActiveListing() then
+        self:RefreshKeystoneInfo()
         if ns.CurrentState == ns.States.IDLE then
             self:StartStopwatch()
             local rosterContext = self:GetRosterContext()
             local nextState = (rosterContext.totalCount > 1) and ns.States.ASSEMBLING or ns.States.LISTED
             self:SetState(nextState, "Active Premade Group listing detected")
             Logger:Info("QUEUE", format("Active Premade Group listing detected! Matchmaking active (Debug: %s).", ns.IsDebugMode() and "|cff00ff00ON|r" or "OFF"))
-            self:EvaluateQueue()
-            self:UpdateUI()
         end
+        self:EvaluateQueue()
+        self:UpdateUI()
     else
         if ns.CurrentState == ns.States.LISTED or ns.CurrentState == ns.States.ASSEMBLING then
             self:SetState(ns.States.IDLE, "Premade Group listing was removed")
@@ -663,13 +678,19 @@ eventFrame:SetScript("OnEvent", function(self, event, ...)
     if event == "ADDON_LOADED" then
         local loadedName = ...
         if loadedName == addonName or loadedName == "MPlusAutoLFG" then
-            -- Initialize SavedVariables
+            -- Initialize SavedVariables with deep defaults merge
             if not MPlusAutoLFGDB then
                 MPlusAutoLFGDB = CopyTable(ns.DefaultConfig)
             end
             for k, v in pairs(ns.DefaultConfig) do
                 if MPlusAutoLFGDB[k] == nil then
-                    MPlusAutoLFGDB[k] = v
+                    MPlusAutoLFGDB[k] = (type(v) == "table") and CopyTable(v) or v
+                elseif type(v) == "table" and type(MPlusAutoLFGDB[k]) == "table" then
+                    for subK, subV in pairs(v) do
+                        if MPlusAutoLFGDB[k][subK] == nil then
+                            MPlusAutoLFGDB[k][subK] = (type(subV) == "table") and CopyTable(subV) or subV
+                        end
+                    end
                 end
             end
             if ns.InitializeSettings then

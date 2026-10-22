@@ -425,6 +425,9 @@ end
 function UI:OnInviteClicked(candidate)
     if not candidate or not candidate.applicantID then return end
 
+    if IsInRaid and IsInRaid() then
+        return
+    end
     if ns.Core and not ns.Core:IsLeader() then
         return
     end
@@ -526,7 +529,8 @@ function UI:UpdateHeader(challengeMapID, keystoneLevel, dungeonName, iconTexture
         f.statusText:SetText("|cff888888IDLE|r")
     end
 
-    -- Leader & Keystone Mismatch Guards
+    -- Leader, Raid & Keystone Mismatch Guards
+    local isRaid = IsInRaid and IsInRaid()
     local isLeader = true
     if ns.Core and ns.Core.IsLeader then
         isLeader = ns.Core:IsLeader()
@@ -539,7 +543,10 @@ function UI:UpdateHeader(challengeMapID, keystoneLevel, dungeonName, iconTexture
         mismatchReason = ns.Core.mismatchReason
     end
 
-    if not isLeader then
+    if isRaid then
+        f.warningText:SetText("|cffff4444In Raid Group: Convert to 5-man Party|r")
+        f.warningText:Show()
+    elseif not isLeader then
         f.warningText:SetText("|cffffaa00Only party leader can manage matchmaking|r")
         f.warningText:Show()
     elseif isMismatch then
@@ -552,7 +559,10 @@ function UI:UpdateHeader(challengeMapID, keystoneLevel, dungeonName, iconTexture
 
     -- If no candidate is actively displayed, sync the button
     if not currentCandidate then
-        if not isLeader then
+        if isRaid then
+            f.inviteBtn:Disable()
+            f.inviteBtn:SetText("Raid Group")
+        elseif not isLeader then
             f.inviteBtn:Disable()
             f.inviteBtn:SetText("Leader Only")
         elseif isMismatch then
@@ -744,7 +754,11 @@ function UI:UpdateCandidateCard(candidate, isInvited)
     end
 
     -- Primary action button state
-    if not isLeader then
+    local isRaid = IsInRaid and IsInRaid()
+    if isRaid then
+        f.inviteBtn:Disable()
+        f.inviteBtn:SetText("Raid Group")
+    elseif not isLeader then
         f.inviteBtn:Disable()
         f.inviteBtn:SetText("Leader Only")
     elseif isMismatch then
@@ -774,10 +788,14 @@ function UI:ClearCandidateCard()
     f.candMetrics:SetText("No qualifying applicants currently in queue.")
     f.candExp:SetText("")
 
+    local isRaid = IsInRaid and IsInRaid()
     local isLeader = (not ns.Core or not ns.Core.IsLeader) or ns.Core:IsLeader()
     local isMismatch = ns.Core and ns.Core.isKeystoneMismatch
 
-    if not isLeader then
+    if isRaid then
+        f.inviteBtn:Disable()
+        f.inviteBtn:SetText("Raid Group")
+    elseif not isLeader then
         f.inviteBtn:Disable()
         f.inviteBtn:SetText("Leader Only")
     elseif isMismatch then

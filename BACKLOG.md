@@ -176,5 +176,19 @@ This document tracks identified bugs, edge cases, and feature refinements to be 
 
 ---
 
+### [x] Task 12: Comprehensive Bug & Corner Case Audit
+* **Status:** Completed
+* **Investigation & Fixes:**
+  1. **Leader Item Level Field Name Mismatch**: `Validation.lua` looked for `rosterContext.leaderItemLevel`, but `Core:GetRosterContext()` returned `leaderIlvl`. The checkbox rule "Require Candidate ilvl >= Party Leader ilvl" never triggered because `leaderIlvl` evaluated to 0. Fixed by providing both `leaderIlvl` and `leaderItemLevel` in `Core:GetRosterContext()`, and checking both in `Validation.lua`.
+  2. **Spec Name & Spec Icon Unpopulated**: `candidate.specName` and `candidate.specIcon` were never populated by `GetApplicantMemberInfo()`, causing the HUD candidate card to never show the spec icon and only display generic class names (`Mage` instead of `Fire Mage`). Fixed by resolving `specName` and `specIcon` from `GetSpecializationInfoByID(specID)` and `ns.Specializations`.
+  3. **Multi-Member Applicant Groups (`numMembers > 1`)**: In solo queue matchmaking, inviting an applicant group only inspected member 1, and could invite 2–3 players at once, exceeding 5-man party limits and admitting unvalidated members. Fixed by guarding in `Core:EvaluateQueue()`: skip applicants if `numMembers > openSlots` or `numMembers > 1`.
+  4. **Leader Spec Omitted from Duplicate Check**: `Core:GetRosterContext()` never added the player's own specialization to `rosterContext.specs`. On key levels < 15, duplicate spec checks permitted candidates with the same spec as the party leader. Fixed by adding player's active specialization from `GetSpecializationInfo(GetSpecialization())` to `specs`.
+  5. **Raid Group State Handling (`IsInRaid()`)**: In a raid group, `UnitExists("party1")` fails, throwing off slot counts, and keystones cannot be slotted in raids. Fixed by guarding against `IsInRaid()` in `Core:IsLeader()`, `Core:EvaluateQueue()`, `UI:UpdateHeader()`, and `UI:OnInviteClicked()`, displaying a dedicated warning banner `"In Raid Group: Convert to 5-man Party"`.
+  6. **Active Listing Manual Edit Synchronization**: When a leader edited their listing in Premade Groups while matchmaking was active, `Core:OnActiveEntryUpdated()` skipped `RefreshKeystoneInfo()` because state was not `IDLE`. Fixed by always calling `self:RefreshKeystoneInfo()` whenever an active entry update fires.
+  7. **SavedVariables Deep Merge**: Shallow merge in `ADDON_LOADED` didn't populate missing nested keys in `customRules` from older versions and shared table references with `DefaultConfig`. Fixed by implementing recursive deep copy and merge in `Core.lua`.
+  8. **Bag Keystone Map ID Lookup when `C_MythicPlus` returns 0**: If `C_MythicPlus.GetOwnedKeystoneChallengeMapID()` returned 0 before a dungeon run, `challengeMapID` stayed 0 even if `activityID` was known. Fixed by adding reverse lookup from `C_LFGList.GetActivityInfoTable(activityID)` to resolve map ID and dungeon name.
+
+---
+
 ## Execution Order
-All tasks 1 through 11 are completed and validated.
+All tasks 1 through 12 are completed and validated.
