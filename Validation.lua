@@ -155,8 +155,9 @@ function ns.CheckExperience(candidate, rosterContext)
 end
 
 ---Rule 4: Class & Spec Duplicate Restrictions
----Key < 15: Same classes are allowed if specializations differ. Duplicate specs are rejected.
----Key >= 15: Duplicate classes are strictly prohibited across the entire group.
+---Keys < 10: Duplicate specs and classes are allowed (low/leveling/casual keys).
+---Keys 10 to 14: Same classes are allowed if specializations differ. Duplicate specs are rejected.
+---Keys >= 15: Duplicate classes are strictly prohibited across the entire group.
 ---@param candidate table
 ---@param rosterContext table
 ---@return boolean passed, string? reason
@@ -173,12 +174,12 @@ function ns.CheckDuplicates(candidate, rosterContext)
         if rosterClasses[classFilename] and rosterClasses[classFilename] > 0 then
             return false, format("Duplicate class '%s' is prohibited on key levels >= 15", classFilename)
         end
-    else
-        -- Keys under 15 allow same class if different specs
+    elseif targetKey >= 10 then
+        -- Keys 10 to 14 allow same class if different specs
         if specID and specID > 0 and rosterSpecs[specID] and rosterSpecs[specID] > 0 then
             local specInfo = ns.GetSpecInfo(specID)
             local specName = specInfo and specInfo.name or format("Spec %d", specID)
-            return false, format("Duplicate specialization '%s' is rejected", specName)
+            return false, format("Duplicate specialization '%s' is rejected on key levels >= 10", specName)
         end
     end
 

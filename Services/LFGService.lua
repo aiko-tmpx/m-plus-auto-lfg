@@ -435,6 +435,7 @@ function LFGService:GetActiveListingDetails()
     local iconTexture = 525134
     local keyLevel = 0
     local groupTitle = entryInfo.name or ""
+    local requiredIlvl = entryInfo.requiredItemLevel or 0
 
     -- Extract clean dungeon name from activity metadata
     if activityID > 0 and C_LFGList.GetActivityInfoTable then
@@ -460,7 +461,7 @@ function LFGService:GetActiveListingDetails()
     -- Parse key level strictly from group title (entryInfo.name)
     keyLevel = self:ParseKeyLevelFromTitle(groupTitle)
 
-    return true, challengeMapID, keyLevel, dungeonName, iconTexture, isMythicPlus, activityID, groupTitle
+    return true, challengeMapID, keyLevel, dungeonName, iconTexture, isMythicPlus, activityID, groupTitle, requiredIlvl
 end
 
 ---Parse Mythic+ keystone level from listing title string

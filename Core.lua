@@ -93,6 +93,7 @@ local activeKeystone = {
     activityID = 0,
     isMPlusQueue = false,
     isValidKey = false,
+    requiredItemLevel = 0,
     displayTitle = "No Keystone Found",
 }
 ns.ActiveKeystone = activeKeystone
@@ -250,7 +251,12 @@ function Core:GetRosterContext()
 
     local leaderIlvl = ns.LFGService:GetLeaderEquippedItemLevel()
     local targetKey = activeKeystone.keystoneLevel or 0
-    local requiredIlvl = ns.LFGService:CalculateRequiredItemLevel(leaderIlvl, targetKey)
+    local requiredIlvl = 0
+    if activeKeystone.requiredItemLevel and activeKeystone.requiredItemLevel > 0 then
+        requiredIlvl = activeKeystone.requiredItemLevel
+    elseif targetKey >= 7 then
+        requiredIlvl = ns.LFGService:CalculateRequiredItemLevel(leaderIlvl, targetKey)
+    end
 
     return {
         members = members,
@@ -502,7 +508,7 @@ end
 ---Refresh active keystone details and sync with active Premade Groups listing
 function Core:RefreshKeystoneInfo()
     local bagMapID, bagKeyLevel, bagDungeonName, bagIcon, bagActID = ns.LFGService:GetOwnedKeystoneInfo()
-    local hasListing, listMapID, listKeyLevel, listDungeonName, listIcon, isMPlus, listActID, listTitle = ns.LFGService:GetActiveListingDetails()
+    local hasListing, listMapID, listKeyLevel, listDungeonName, listIcon, isMPlus, listActID, listTitle, listReqIlvl = ns.LFGService:GetActiveListingDetails()
 
     if hasListing then
         -- Only proceed with matchmaking if the queued difficulty is Mythic+
@@ -515,6 +521,7 @@ function Core:RefreshKeystoneInfo()
             activeKeystone.activityID = listActID > 0 and listActID or bagActID
             activeKeystone.isMPlusQueue = true
             activeKeystone.isValidKey = (parsedLevel >= 2 and parsedLevel <= 50)
+            activeKeystone.requiredItemLevel = listReqIlvl or 0
 
             -- Draw only title: use the listing title string directly
             if listTitle and listTitle ~= "" then
@@ -548,6 +555,7 @@ function Core:RefreshKeystoneInfo()
             activeKeystone.isValidKey = false
             activeKeystone.keystoneLevel = 0
             activeKeystone.iconTexture = 525134
+            activeKeystone.requiredItemLevel = 0
             activeKeystone.displayTitle = (listTitle and listTitle ~= "") and listTitle or "Non-M+ Listing"
             if ns.CurrentState == ns.States.LISTED or ns.CurrentState == ns.States.ASSEMBLING then
                 self:SetState(ns.States.IDLE, "Stopped: Not a Mythic+ listing")
@@ -564,6 +572,7 @@ function Core:RefreshKeystoneInfo()
         activeKeystone.activityID = bagActID
         activeKeystone.isMPlusQueue = false
         activeKeystone.isValidKey = (bagKeyLevel and bagKeyLevel >= 2)
+        activeKeystone.requiredItemLevel = 0
         if bagDungeonName and bagDungeonName ~= "" and bagDungeonName ~= "Unknown Dungeon" then
             activeKeystone.displayTitle = format("%s +%d", bagDungeonName, bagKeyLevel or 2)
         else
