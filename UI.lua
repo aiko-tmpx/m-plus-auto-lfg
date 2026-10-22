@@ -137,14 +137,6 @@ function UI:CreateMainHUD()
     keyIcon:SetTexture(525134) -- Default keystone icon
     f.keyIcon = keyIcon
 
-    local dungeonText = f:CreateFontString(nil, "OVERLAY", "GameFontNormalLarge")
-    dungeonText:SetPoint("LEFT", keyIcon, "RIGHT", 10, 0)
-    dungeonText:SetPoint("RIGHT", timerText, "LEFT", -10, 0)
-    dungeonText:SetJustifyH("LEFT")
-    dungeonText:SetWordWrap(false)
-    dungeonText:SetText("No Keystone Found")
-    f.dungeonText = dungeonText
-
     local timerText = f:CreateFontString(nil, "OVERLAY", "GameFontNormalLarge")
     timerText:SetPoint("TOPRIGHT", f, "TOPRIGHT", -14, -34)
     timerText:SetText("00:00")
@@ -161,6 +153,14 @@ function UI:CreateMainHUD()
     statusIcon:SetPoint("RIGHT", statusText, "LEFT", -4, 0)
     statusIcon:SetTexture("Interface\\Common\\Indicator-Gray")
     f.statusIcon = statusIcon
+
+    local dungeonText = f:CreateFontString(nil, "OVERLAY", "GameFontNormalLarge")
+    dungeonText:SetPoint("LEFT", keyIcon, "RIGHT", 10, 0)
+    dungeonText:SetWidth(168)
+    dungeonText:SetJustifyH("LEFT")
+    dungeonText:SetWordWrap(false)
+    dungeonText:SetText("No Keystone Found")
+    f.dungeonText = dungeonText
 
     -- Section divider 1
     local div1 = f:CreateTexture(nil, "ARTWORK")
