@@ -210,5 +210,32 @@ This document tracks identified bugs, edge cases, and feature refinements to be 
 
 ---
 
+### [x] Task 14: Rules UX Overhaul & Qualification Rule Refinements
+* **Status:** Completed
+* **Reported Behavior:**
+  1. "Require Timed Run" was a checkbox, but timed runs should be enforced by default.
+  2. "Require Candidate ilvl >= Party Leader ilvl" checkbox was redundant and cluttered the options.
+  3. Missing option to filter for applicants who have not completed the active dungeon (for bonus crests/score).
+  4. HUD mode switcher was a single button that was unclear from a UX perspective. It should show segmented `[Custom]` `[Default]` buttons side-by-side, desaturating the inactive one.
+  5. Tooltips lacked descriptive details and slider labels overlapped with value text.
+* **Changes Made:**
+  1. In `Settings.lua`:
+     - Removed "Require Timed Run" checkbox (timed runs are now always required by default).
+     - Removed "Require Candidate ilvl >= Party Leader ilvl" checkbox.
+     - Added "Only applicants who haven't completed this dungeon" checkbox (`onlyUncompletedDungeon`).
+     - Fixed slider width (widened to 280) and label placement to eliminate text overlap.
+     - Added comprehensive multiline hover tooltips with concrete examples to both sliders and checkboxes.
+  2. In `Validation.lua`:
+     - Removed `requireIlvlLeader` check from `ns.CheckItemLevel`.
+     - In `ns.CheckExperience`, enforced timed runs by default in both Default and Custom modes.
+     - Added logic for `onlyUncompletedDungeon`: strictly requires `bestRun == 0`, rejecting any candidate who already has a completed run for the dungeon.
+  3. In `UI.lua`:
+     - Replaced the single mode toggle button with dual segmented buttons: `Rules: [Custom] [Default]`.
+     - Clicking `[Custom]` activates Custom mode, saturates `[Custom]` with gold text, and desaturates/dims `[Default]` to 0.40 alpha with gray text (and vice-versa).
+     - Added rich, descriptive hover tooltips to both buttons displaying current live settings and tier breakdown.
+  4. Verified with automated unit tests and Lua 5.1 AST syntax checks via `luaparse`.
+
+---
+
 ## Execution Order
-All tasks 1 through 13 are completed and validated.
+All tasks 1 through 14 are completed and validated.
