@@ -190,5 +190,25 @@ This document tracks identified bugs, edge cases, and feature refinements to be 
 
 ---
 
+### [x] Task 13: Enhanced Listing Key Parser & Mismatch Visual Desaturation
+* **Status:** Completed
+* **Reported Behavior:**
+  In Premade Groups, a group was listed as `+12 Den of Nalorakk` while the leader possessed `Den of Nalorakk +2` in bags. The `MPlusAutoLFG` HUD displayed `Den of Nalorakk +2` without detecting the mismatch or desaturating the frame.
+* **Root Cause:**
+  1. `Services/LFGService.lua` used strict pattern `%+(%d+)`. Variations like `12 Den`, `+ 12`, `12+`, or unpopulated/protected `entryInfo.name` resulted in `keyLevel = 0`.
+  2. In `Core:RefreshKeystoneInfo()`, when `listKeyLevel` was `0`, the listing key quietly fell back to `bagKeyLevel` (+2), and the check `if bagKeyLevel > 0 and listKeyLevel > 0 and bagKeyLevel ~= listKeyLevel` was completely bypassed.
+  3. No visual desaturation or dimming was applied to the HUD on keystone mismatches.
+* **Changes Made:**
+  1. In `Services/LFGService.lua`: implemented robust multi-tier parser supporting `+12`, `+ 12`, `12+`, `12 +`, standalone integers `2`–`35` (excluding ilvl/score suffixes), and fallback reading of `LFGListFrame.ApplicationViewer.EntryName` and `LFGListFrame.EntryCreation.Name`. Added `entryInfo.activityIDs` array support.
+  2. In `Core.lua`: added mismatch detection when `bagKeyLevel == 0 and listKeyLevel > 0`, paused matchmaking immediately when mismatch is active (`self:SetState(ns.States.IDLE, "Paused: Keystone mismatch detected")`), and guarded against auto-attaching while mismatched.
+  3. In `UI.lua`:
+     - Added `f.mismatchOverlay` dark veil over candidate showcase and controls with `"LISTING MISMATCH - MATCHMAKING PAUSED"`.
+     - In `UI:UpdateHeader`: desaturated keystone icon (`f.keyIcon:SetDesaturated(true)`), dimmed alpha (`0.45`), set status indicator to gray with `"MISMATCH"`, showed warning banner, and disabled `modeBtn`.
+     - In `UI:UpdateUtilityStatus`: desaturated and dimmed all 5 role icons to `0.25` alpha, muted BL/CR text to `|cff666666|r`.
+     - In `UI:UpdateCandidateCard`: desaturated candidate spec icon and disabled action button with `"Listing Mismatch"`.
+  4. Verified all test cases and 100% Lua 5.1 AST syntax validity with `luaparse`.
+
+---
+
 ## Execution Order
-All tasks 1 through 12 are completed and validated.
+All tasks 1 through 13 are completed and validated.
