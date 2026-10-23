@@ -134,23 +134,24 @@ function ns.InitializeSettings()
         "• |cffffd100Keys up to +10:|r Open queue. No prior completed run of the dungeon is required.\n\n" ..
         "• |cffffd100Keys +11 to +15:|r Requires a completed timed run of at least [Key - 2] specifically for this dungeon (e.g. +9 for an 11, +13 for a 15).\n\n" ..
         "• |cffffd100Keys +16+:|r Requires a completed timed run of at least [Key - 1] specifically for this dungeon (e.g. +15 for a 16).\n\n" ..
+        "• |cffffd100Completed Runs:|r Only runs finished within the timer count as completed. Overtime or depleted runs are never counted.\n\n" ..
         "• |cffffd100Item Level:|r Must meet the item level requirement set in the Premade Groups listing.\n\n" ..
         "• |cffffd100Group Roles & Utility:|r Automatically guarantees 1 Tank, 1 Healer, 3 DPS, Bloodlust/Heroism, and Combat Resurrection before the group fills.")
 
     local div2 = panel:CreateTexture(nil, "ARTWORK")
-    div2:SetPoint("TOPLEFT", rulesDesc, "BOTTOMLEFT", 0, -14)
+    div2:SetPoint("TOPLEFT", panel, "TOPLEFT", 16, -275)
     div2:SetSize(580, 1)
     div2:SetColorTexture(0.25, 0.25, 0.28, 0.8)
 
     -- Section: Options
     local optHeader = panel:CreateFontString(nil, "OVERLAY", "GameFontNormal")
-    optHeader:SetPoint("TOPLEFT", div2, "BOTTOMLEFT", 0, -14)
+    optHeader:SetPoint("TOPLEFT", panel, "TOPLEFT", 16, -290)
     optHeader:SetText("Qualification Options")
 
     local equalHigherCb = CreateCheckbox(
         panel,
-        "Qualify equal and higher key players (even if untimed)",
-        "When enabled, applicants who have completed a run of equal or higher key level for this dungeon qualify automatically, even if the run was overtime / depleted. When disabled (default), applicants must meet the tier requirements and have a timed run.",
+        "Qualify equal and higher key players",
+        "When enabled, applicants who have already timed an equal or higher key level for this dungeon qualify to join.\n\nWhen disabled (default), only applicants progressing in the required tier bracket qualify.\n\nNote: Overtime or depleted runs are never counted as completed under any circumstances.",
         function() return (MPlusAutoLFGDB and MPlusAutoLFGDB.qualifyEqualOrHigher) == true end,
         function(val)
             if MPlusAutoLFGDB then
@@ -161,7 +162,7 @@ function ns.InitializeSettings()
             end
         end
     )
-    equalHigherCb:SetPoint("TOPLEFT", optHeader, "BOTTOMLEFT", 0, -10)
+    equalHigherCb:SetPoint("TOPLEFT", panel, "TOPLEFT", 16, -315)
     table.insert(widgets, equalHigherCb)
 
     panel.Refresh = function()

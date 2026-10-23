@@ -779,10 +779,10 @@ function UI:UpdateCandidateCard(candidate, isInvited)
     -- Dungeon Experience
     local bestLevel = candidate.bestRunLevel or 0
     if bestLevel > 0 then
-        local timedStr = candidate.bestRunFinishedSuccess and "|cff00ff00Timed|r" or "|cffff4444Overtime|r"
+        local timedStr = candidate.bestRunFinishedSuccess and "|cff00ff00Timed|r" or "|cffff4444Overtime (Depleted)|r"
         f.candExp:SetText(format("Best Run: +%d %s", bestLevel, timedStr))
     else
-        f.candExp:SetText("Best Run: |cff888888No record for this key|r")
+        f.candExp:SetText("Best Run: |cff888888No record for this dungeon|r")
     end
 
     -- Primary action button state

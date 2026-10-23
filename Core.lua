@@ -358,7 +358,7 @@ function Core:EvaluateQueue()
                     Logger:Debug("QUEUE", format("Evaluating applicant '%s' (%s %s, ilvl %d, M+ Score %d, best run +%d%s)...",
                         candidate.name, candidate.role, candidate.localizedClass or candidate.classFilename,
                         candidate.itemLevel or 0, candidate.dungeonScore or 0, candidate.bestRunLevel or 0,
-                        candidate.bestRunFinishedSuccess and " Timed" or " Overtime"))
+                        candidate.bestRunFinishedSuccess and " Timed" or " Overtime/Depleted"))
 
                     -- Run declarative pipeline validation
                     local isValid, rejectReason, validatorName = ns.ValidateCandidate(candidate, rosterContext)

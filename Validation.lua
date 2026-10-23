@@ -69,10 +69,11 @@ end
 
 ---Rule 3: Dungeon Experience Threshold
 ---Automated qualification tiers:
----  * Before +10 (Keys <= 10): No prior completed run required (open queue).
+---  * Before +10 (Keys <= 10): Open queue — no prior completed run required.
 ---  * Keys 11 to 15: Requires [Key - 2] completed timed for this specific dungeon.
 ---  * Keys 16+: Requires [Key - 1] completed timed for this specific dungeon.
----  * Optional (disabled by default): Applicants with equal or higher keys (bestRun >= targetKey) qualify even if untimed.
+---  * Overtime or depleted runs are NEVER counted as completed.
+---  * Option (disabled by default): Applicants who already timed equal or higher keys qualify.
 ---@param candidate table
 ---@param rosterContext table
 ---@return boolean passed, string? reason
@@ -86,10 +87,11 @@ function ns.CheckExperience(candidate, rosterContext)
         return true, nil
     end
 
-    -- Option: Auto-qualify equal and higher key applicants (disabled by default)
-    local qualifyEqualOrHigher = (MPlusAutoLFGDB and MPlusAutoLFGDB.qualifyEqualOrHigher) == true
-    if qualifyEqualOrHigher and bestRun >= targetKey then
-        return true, nil
+    -- Overtime or depleted runs are NEVER counted as completed
+    if not timed or bestRun <= 0 then
+        return false, (bestRun > 0)
+            and format("Best run (+%d) was depleted/overtime (only timed runs count as completed)", bestRun)
+            or format("No completed run recorded for this dungeon (key +%d)", targetKey)
     end
 
     -- Keys 11 to 15: [Key - 2] timed is required
@@ -98,11 +100,13 @@ function ns.CheckExperience(candidate, rosterContext)
     local minRequiredLevel = max(2, targetKey - drop)
 
     if bestRun < minRequiredLevel then
-        return false, format("Best run (+%d) is below required tier (+%d) for key +%d", bestRun, minRequiredLevel, targetKey)
+        return false, format("Best timed run (+%d) is below required tier (+%d) for key +%d", bestRun, minRequiredLevel, targetKey)
     end
 
-    if not timed then
-        return false, format("Best run (+%d) was not completed within the timer", bestRun)
+    -- Applicants who already timed equal or higher keys (bestRun >= targetKey) only qualify if enabled in Options
+    local qualifyEqualOrHigher = (MPlusAutoLFGDB and MPlusAutoLFGDB.qualifyEqualOrHigher) == true
+    if not qualifyEqualOrHigher and bestRun >= targetKey then
+        return false, format("Applicant already timed equal/higher (+%d >= +%d); 'Qualify equal and higher players' is disabled in Options", bestRun, targetKey)
     end
 
     return true, nil
