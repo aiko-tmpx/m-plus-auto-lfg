@@ -345,11 +345,21 @@ function LFGService:SetDefaultListingPlaystyle()
     end
 end
 
----Hook Blizzard's EntryCreation frame to auto-apply defaults on display
+---Hook Blizzard's EntryCreation frame to auto-apply defaults on display and track listing title
 function LFGService:HookEntryCreation()
     local frame = LFGListFrame and LFGListFrame.EntryCreation
     if frame and not frame.mplusAutoLFGHooked then
         frame.mplusAutoLFGHooked = true
+
+        if frame.Name and frame.Name.HookScript then
+            frame.Name:HookScript("OnTextChanged", function(editBox)
+                local txt = editBox:GetText()
+                if txt and txt ~= "" and not txt:match("^|K") then
+                    LFGService.lastListingTitle = txt
+                    if MPlusAutoLFGDB then MPlusAutoLFGDB.lastListingTitle = txt end
+                end
+            end)
+        end
 
         frame:HookScript("OnShow", function()
             if C_Timer and C_Timer.After then
@@ -436,6 +446,31 @@ function LFGService:GetActiveListingDetails()
     local keyLevel = 0
     local groupTitle = entryInfo.name or ""
     local requiredIlvl = entryInfo.requiredItemLevel or 0
+
+    -- Resolve real plaintext title if Blizzard returns an internal K-string token (|Ku<index>|k)
+    local isKString = groupTitle:match("^|K") ~= nil
+    if isKString or groupTitle == "" then
+        local liveText = nil
+        if LFGListFrame and LFGListFrame.EntryCreation and LFGListFrame.EntryCreation.Name and LFGListFrame.EntryCreation.Name.GetText then
+            local ebText = LFGListFrame.EntryCreation.Name:GetText()
+            if ebText and ebText ~= "" and not ebText:match("^|K") then
+                liveText = ebText
+            end
+        end
+
+        if liveText and liveText ~= "" then
+            groupTitle = liveText
+            self.lastListingTitle = liveText
+            if MPlusAutoLFGDB then MPlusAutoLFGDB.lastListingTitle = liveText end
+        elseif self.lastListingTitle and self.lastListingTitle ~= "" then
+            groupTitle = self.lastListingTitle
+        elseif MPlusAutoLFGDB and MPlusAutoLFGDB.lastListingTitle and MPlusAutoLFGDB.lastListingTitle ~= "" then
+            groupTitle = MPlusAutoLFGDB.lastListingTitle
+        end
+    else
+        self.lastListingTitle = groupTitle
+        if MPlusAutoLFGDB then MPlusAutoLFGDB.lastListingTitle = groupTitle end
+    end
 
     -- Extract clean dungeon name from activity metadata
     if activityID > 0 and C_LFGList.GetActivityInfoTable then
