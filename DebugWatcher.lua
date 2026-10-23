@@ -14,9 +14,20 @@ local tostring = tostring
 local tonumber = tonumber
 local type = type
 local table = table
+local ipairs = ipairs
+local pairs = pairs
 local pcall = pcall
 
 local PREFIX = "|cffff00ff[MPlus-PROBE]|r"
+
+-------------------------------------------------------------------------------
+-- Hidden Widgets for C-String Token Resolution
+-------------------------------------------------------------------------------
+local hiddenEditBox = CreateFrame("EditBox")
+hiddenEditBox:Hide()
+
+local hiddenFontString = UIParent:CreateFontString(nil, "BACKGROUND", "GameFontNormal")
+hiddenFontString:Hide()
 
 -------------------------------------------------------------------------------
 -- Helper: Hex / Byte Representation
@@ -36,18 +47,15 @@ end
 -------------------------------------------------------------------------------
 -- Multi-Method Parsing Suite
 -------------------------------------------------------------------------------
-local function RunParserSuite(rawTitle)
+local function ParseSingleString(titleStr)
     local results = {}
-
-    local titleStr = tostring(rawTitle or "")
-    local titleLen = #titleStr
-    local hexDump = StringToHex(titleStr)
+    titleStr = tostring(titleStr or "")
 
     -- Method 1: Raw Direct Pattern (%+ *(%d+) and (%d+) *%+)
     local m1 = titleStr:match("%+%s*(%d+)") or titleStr:match("(%d+)%s*%+")
     results["1. Raw Pattern"] = m1 and tonumber(m1) or "nil"
 
-    -- Method 2: Stripped Blizzard UI Markup (|c, |r, |H, |T, |A)
+    -- Method 2: Stripped Blizzard UI Markup (|c, |r, |H, |T, |A, |K)
     local clean2 = titleStr:gsub("|c%x%x%x%x%x%x%x%x", ""):gsub("|r", "")
     clean2 = clean2:gsub("|H.-|h(.-)|h", "%1")
     clean2 = clean2:gsub("|T.-|t", "")
@@ -62,13 +70,11 @@ local function RunParserSuite(rawTitle)
     end
     local m3 = nil
     for idx, token in ipairs(tokens) do
-        -- e.g. "+2" or "2+"
         local num = token:match("^%+(%d+)$") or token:match("^(%d+)%+$")
         if num then
             m3 = tonumber(num)
             break
         end
-        -- e.g. "+" followed by "2" in next token
         if token == "+" and tokens[idx + 1] and tokens[idx + 1]:match("^%d+$") then
             m3 = tonumber(tokens[idx + 1])
             break
@@ -76,23 +82,43 @@ local function RunParserSuite(rawTitle)
     end
     results["3. Token-Split"] = m3 or "nil"
 
-    -- Method 4: Scan ALL numbers found in the entire string
+    -- Method 4: Scan ALL numbers found in the string
     local allNums = {}
     for n in titleStr:gmatch("(%d+)") do
         table.insert(allNums, tonumber(n))
     end
-    results["4. All Digits In Title"] = #allNums > 0 and table.concat(allNums, ", ") or "none"
+    results["4. All Digits"] = #allNums > 0 and table.concat(allNums, ", ") or "none"
 
-    -- Method 5: Sanitize Unicode / Non-ASCII (replace non-ASCII bytes > 127)
-    local asciiOnly = titleStr:gsub("[\128-\255]", " ")
-    local m5 = asciiOnly:match("%+%s*(%d+)") or asciiOnly:match("(%d+)%s*%+")
-    results["5. Non-ASCII Stripped"] = m5 and tonumber(m5) or "nil"
+    return results
+end
+
+local function RunParserSuite(rawTitle)
+    local titleStr = tostring(rawTitle or "")
+    local titleLen = #titleStr
+    local hexDump = StringToHex(titleStr)
+
+    -- Attempt decoding through Hidden EditBox
+    local editBoxDecoded = nil
+    pcall(function()
+        hiddenEditBox:SetText(titleStr)
+        editBoxDecoded = hiddenEditBox:GetText()
+    end)
+
+    -- Attempt decoding through Hidden FontString
+    local fsDecoded = nil
+    pcall(function()
+        hiddenFontString:SetText(titleStr)
+        fsDecoded = hiddenFontString:GetText()
+    end)
 
     return {
         raw = titleStr,
         len = titleLen,
         hex = hexDump,
-        results = results,
+        editBoxDecoded = editBoxDecoded,
+        fsDecoded = fsDecoded,
+        rawResults = ParseSingleString(titleStr),
+        editBoxResults = editBoxDecoded and ParseSingleString(editBoxDecoded) or nil,
     }
 end
 
@@ -104,16 +130,36 @@ local function PrintReport(sourceTag, suiteResult, extraInfo)
     print(string.format("%s |cffffff00Raw Title:|r '%s' (len: %d bytes)", PREFIX, suiteResult.raw, suiteResult.len))
     print(string.format("%s |cffaaaaaaHex Bytes:|r %s", PREFIX, suiteResult.hex))
 
+    -- Print Decoded Probe Results
+    if suiteResult.editBoxDecoded then
+        local ebHex = StringToHex(suiteResult.editBoxDecoded)
+        print(string.format("%s |cff00ff00[RESOLVER] Hidden EditBox:|r '%s' (len: %d, hex: %s)",
+            PREFIX, suiteResult.editBoxDecoded, #suiteResult.editBoxDecoded, ebHex))
+    end
+    if suiteResult.fsDecoded then
+        local fsHex = StringToHex(suiteResult.fsDecoded)
+        print(string.format("%s |cff00ff00[RESOLVER] Hidden FontString:|r '%s' (len: %d, hex: %s)",
+            PREFIX, suiteResult.fsDecoded, #suiteResult.fsDecoded, fsHex))
+    end
+
     if extraInfo then
         for k, v in pairs(extraInfo) do
             print(string.format("%s |cff00b4ff%s:|r %s", PREFIX, k, tostring(v)))
         end
     end
 
-    print(string.format("%s |cff00ff00Parsing Methods Comparison:|r", PREFIX))
-    for name, val in pairs(suiteResult.results) do
+    print(string.format("%s |cffff8800Raw Parsing Results:|r", PREFIX))
+    for name, val in pairs(suiteResult.rawResults) do
         print(string.format("%s   * %s: |cffffffff%s|r", PREFIX, name, tostring(val)))
     end
+
+    if suiteResult.editBoxResults then
+        print(string.format("%s |cff00ff00EditBox-Decoded Parsing Results:|r", PREFIX))
+        for name, val in pairs(suiteResult.editBoxResults) do
+            print(string.format("%s   * %s: |cffffffff%s|r", PREFIX, name, tostring(val)))
+        end
+    end
+
     print(string.format("%s ==================================================", PREFIX))
 end
 
@@ -139,18 +185,32 @@ probeFrame:SetScript("OnEvent", function(self, event, ...)
 
         local groupTitle = entryInfo.name or ""
         local extra = {
-            ["activityID"] = entryInfo.activityID or "nil",
-            ["comment"] = entryInfo.comment ~= "" and entryInfo.comment or "(empty)",
             ["requiredItemLevel"] = entryInfo.requiredItemLevel or 0,
             ["duration"] = entryInfo.duration or 0,
-            ["autoAccept"] = tostring(entryInfo.autoAccept),
-            ["privateGroup"] = tostring(entryInfo.privateGroup),
+            ["activityID"] = entryInfo.activityID or "nil",
         }
 
-        -- Also probe Blizzard's live EditBox if the EntryCreation UI is visible
+        if entryInfo.activityIDs and #entryInfo.activityIDs > 0 then
+            extra["activityIDs[1]"] = entryInfo.activityIDs[1]
+        end
+
+        -- Check live Blizzard EditBox
         if LFGListFrame and LFGListFrame.EntryCreation and LFGListFrame.EntryCreation.Name then
-            local editBoxText = LFGListFrame.EntryCreation.Name:GetText()
-            extra["UI EditBox.Name"] = string.format("'%s'", tostring(editBoxText or ""))
+            local ebText = LFGListFrame.EntryCreation.Name:GetText()
+            extra["Live Blizzard EditBox.Name"] = string.format("'%s' (hex: %s)", tostring(ebText or ""), StringToHex(ebText or ""))
+        end
+
+        -- Check live Blizzard ApplicationViewer header
+        if LFGListFrame and LFGListFrame.ApplicationViewer then
+            local viewer = LFGListFrame.ApplicationViewer
+            if viewer.EntryName and viewer.EntryName.GetText then
+                local vn = viewer.EntryName:GetText()
+                extra["ApplicationViewer.EntryName"] = string.format("'%s' (hex: %s)", tostring(vn or ""), StringToHex(vn or ""))
+            end
+            if viewer.Name and viewer.Name.GetText then
+                local vn = viewer.Name:GetText()
+                extra["ApplicationViewer.Name"] = string.format("'%s' (hex: %s)", tostring(vn or ""), StringToHex(vn or ""))
+            end
         end
 
         local report = RunParserSuite(groupTitle)
@@ -174,4 +234,4 @@ SlashCmdList["MALFGTEST"] = function(msg)
     })
 end
 
-print(string.format("%s Standalone Debug Watcher loaded. Queuing in LFG will dump raw titles & 5 parser methods. Type |cff00ff00/malfgtest <text>|r to test any string manually.", PREFIX))
+print(string.format("%s Standalone Debug Watcher v2 loaded. Type |cff00ff00/malfgtest <text>|r to test any string manually.", PREFIX))
