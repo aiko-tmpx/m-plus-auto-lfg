@@ -121,79 +121,22 @@ function ns.InitializeSettings()
 
     local widgets = {}
 
-    -- Section 1: Rules Mode (Default vs Custom)
-    local modeHeader = panel:CreateFontString(nil, "OVERLAY", "GameFontNormal")
-    modeHeader:SetPoint("TOPLEFT", div, "BOTTOMLEFT", 0, -14)
-    modeHeader:SetText("Matchmaking Rules Mode")
+    -- Section: Qualification Tiers Information
+    local rulesHeader = panel:CreateFontString(nil, "OVERLAY", "GameFontNormal")
+    rulesHeader:SetPoint("TOPLEFT", div, "BOTTOMLEFT", 0, -14)
+    rulesHeader:SetText("Matchmaking Rules & Qualification Tiers")
 
-    local modeDesc = panel:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
-    modeDesc:SetPoint("TOPLEFT", modeHeader, "BOTTOMLEFT", 0, -4)
-    modeDesc:SetText("Choose between smart automated tiers or your own custom qualification rules:")
-
-    local modeToggle = CreateCheckbox(panel, "Use Custom Rules (Enable sliders below)",
-        "When unchecked, Default mode is active:\n* Keys +2 to +6: Open to all applicants.\n* Keys +7 to +11: Requires [Key - 2] completed.\n* Keys +12+: Requires [Key - 1] completed (timed).\n\nWhen checked, the custom sliders below are strictly enforced.",
-        function() return (MPlusAutoLFGDB and MPlusAutoLFGDB.rulesMode) == "CUSTOM" end,
-        function(val)
-            if MPlusAutoLFGDB then
-                MPlusAutoLFGDB.rulesMode = val and "CUSTOM" or "DEFAULT"
-            end
-            if ns.UI and ns.UI.UpdateModeButton then ns.UI:UpdateModeButton() end
-            if ns.Core and ns.Core.EvaluateQueue then ns.Core:EvaluateQueue() end
-        end
-    )
-    modeToggle:SetPoint("TOPLEFT", modeDesc, "BOTTOMLEFT", 0, -8)
-    table.insert(widgets, modeToggle)
-
-    -- Section 2: Custom Key Range Options
-    local keyHeader = panel:CreateFontString(nil, "OVERLAY", "GameFontNormal")
-    keyHeader:SetPoint("TOPLEFT", modeToggle, "BOTTOMLEFT", 0, -20)
-    keyHeader:SetText("Custom Key Level Qualification Rules")
-
-    local keySlider = CreateSlider(panel, "Allowed Key Level Drop", 0, 5, 1,
-        function() return (MPlusAutoLFGDB and MPlusAutoLFGDB.customRules and MPlusAutoLFGDB.customRules.keyDropTolerance) or 2 end,
-        function(val)
-            if MPlusAutoLFGDB and MPlusAutoLFGDB.customRules then
-                MPlusAutoLFGDB.customRules.keyDropTolerance = val
-            end
-            if ns.Core and ns.Core.EvaluateQueue then ns.Core:EvaluateQueue() end
-        end,
-        function(val) return format("[Key - %d] (Min: +2)", val) end,
-        "Specifies how many levels below the listed keystone a candidate's best run can be.\n\nExample for a +10 keystone:\n• Drop 0: Candidate must have timed a +10 or higher.\n• Drop 1: Candidate must have timed at least a +9.\n• Drop 2: Candidate must have timed at least a +8.\n\nNote: Timed runs are always required by default. Candidates with equal or higher keys for this dungeon always qualify."
-    )
-    keySlider:SetPoint("TOPLEFT", keyHeader, "BOTTOMLEFT", 0, -28)
-    table.insert(widgets, keySlider)
-
-    local uncompletedCheckbox = CreateCheckbox(panel, "Only applicants who haven't completed this dungeon",
-        "When checked, only candidates who have NEVER completed this dungeon (best run level is 0) will qualify.\n\nIdeal for bonus crests, valorstone farming, or first-time rating gain groups.",
-        function() return (MPlusAutoLFGDB and MPlusAutoLFGDB.customRules and MPlusAutoLFGDB.customRules.onlyUncompletedDungeon) == true end,
-        function(val)
-            if MPlusAutoLFGDB and MPlusAutoLFGDB.customRules then
-                MPlusAutoLFGDB.customRules.onlyUncompletedDungeon = val
-            end
-            if ns.Core and ns.Core.EvaluateQueue then ns.Core:EvaluateQueue() end
-        end
-    )
-    uncompletedCheckbox:SetPoint("TOPLEFT", keySlider, "BOTTOMLEFT", 0, -22)
-    table.insert(widgets, uncompletedCheckbox)
-
-    -- Section 3: Item Level Options
-    local ilvlHeader = panel:CreateFontString(nil, "OVERLAY", "GameFontNormal")
-    ilvlHeader:SetPoint("TOPLEFT", uncompletedCheckbox, "BOTTOMLEFT", 0, -20)
-    ilvlHeader:SetText("Custom Item Level Requirements")
-
-    local ilvlSlider = CreateSlider(panel, "Allowed Item Level Deficit", 0, 30, 1,
-        function() return (MPlusAutoLFGDB and MPlusAutoLFGDB.customRules and MPlusAutoLFGDB.customRules.ilvlDeficit) or 10 end,
-        function(val)
-            if MPlusAutoLFGDB and MPlusAutoLFGDB.customRules then
-                MPlusAutoLFGDB.customRules.ilvlDeficit = val
-            end
-            if ns.Core and ns.Core.EvaluateQueue then ns.Core:EvaluateQueue() end
-        end,
-        function(val) return format("-%d ilvl from recommendation", val) end,
-        "Specifies how far below Blizzard's recommended minimum item level an applicant is allowed to be.\n\nExample for a dungeon recommending 610 ilvl:\n• Deficit 0: Must be 610+ ilvl.\n• Deficit 10: Candidates with 600+ ilvl qualify.\n• Deficit 20: Candidates with 590+ ilvl qualify."
-    )
-    ilvlSlider:SetPoint("TOPLEFT", ilvlHeader, "BOTTOMLEFT", 0, -28)
-    table.insert(widgets, ilvlSlider)
+    local rulesDesc = panel:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+    rulesDesc:SetPoint("TOPLEFT", rulesHeader, "BOTTOMLEFT", 0, -6)
+    rulesDesc:SetWidth(560)
+    rulesDesc:SetJustifyH("LEFT")
+    rulesDesc:SetText("MPlusAutoLFG uses a deterministic qualification pipeline tailored to keystone difficulty:\n\n" ..
+        "• |cffffd100Keys up to +10:|r Open queue. No prior completed run of the dungeon is required.\n\n" ..
+        "• |cffffd100Keys +11 to +15:|r Requires a completed timed run of at least [Key - 2] specifically for this dungeon (e.g. +9 for an 11, +13 for a 15).\n\n" ..
+        "• |cffffd100Keys +16+:|r Requires a completed timed run of at least [Key - 1] specifically for this dungeon (e.g. +15 for a 16).\n\n" ..
+        "• |cffffd100Higher Keys:|r Candidates with an equal or higher completed key for this dungeon always qualify.\n\n" ..
+        "• |cffffd100Item Level:|r Must meet the item level requirement set in the Premade Groups listing.\n\n" ..
+        "• |cffffd100Group Roles & Utility:|r Automatically guarantees 1 Tank, 1 Healer, 3 DPS, Bloodlust/Heroism, and Combat Resurrection before the group fills.")
 
     panel.Refresh = function()
         for _, w in ipairs(widgets) do

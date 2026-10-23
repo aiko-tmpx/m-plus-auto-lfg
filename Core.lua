@@ -835,14 +835,8 @@ SlashCmdList["MPLUSAUTOLFG"] = function(msg)
         if ns.OpenOptions then
             ns.OpenOptions()
         end
-    elseif cmd == "mode" then
-        if MPlusAutoLFGDB then
-            MPlusAutoLFGDB.rulesMode = (MPlusAutoLFGDB.rulesMode == "CUSTOM") and "DEFAULT" or "CUSTOM"
-            Logger:Info("RULES", format("Rules mode switched to: |cffffffff%s|r", MPlusAutoLFGDB.rulesMode))
-            if ns.UI and ns.UI.UpdateModeButton then ns.UI:UpdateModeButton() end
-            Core:EvaluateQueue()
-            Core:UpdateUI()
-        end
+    elseif cmd == "mode" or cmd == "rules" then
+        Logger:Info("RULES", "Qualification Tiers: up to +10 (Open queue), +11 to +15 ([Key - 2] timed), +16+ ([Key - 1] timed).")
     elseif cmd == "debug" then
         if MPlusAutoLFGDB then
             MPlusAutoLFGDB.debug = not MPlusAutoLFGDB.debug
