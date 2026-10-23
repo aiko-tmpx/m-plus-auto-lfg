@@ -229,10 +229,18 @@ function Core:GetRosterContext()
     end
 
     -- 3. Merge Pending Invited Candidates (Reserved Slots)
+    local pendingList = {}
     for _, pending in pairs(pendingInvites) do
         local pRole = pending.role or "DAMAGER"
         local pClass = pending.classFilename or "WARRIOR"
         local pSpec = pending.specID
+
+        table.insert(pendingList, {
+            name = pending.name,
+            class = pClass,
+            role = pRole,
+            isPending = true,
+        })
 
         roles[pRole] = (roles[pRole] or 0) + 1
         classes[pClass] = (classes[pClass] or 0) + 1
@@ -244,10 +252,7 @@ function Core:GetRosterContext()
         if pending.hasCR then hasCR = true end
     end
 
-    local totalCount = #members
-    for _ in pairs(pendingInvites) do
-        totalCount = totalCount + 1
-    end
+    local totalCount = #members + #pendingList
 
     local leaderIlvl = ns.LFGService:GetLeaderEquippedItemLevel()
     local targetKey = activeKeystone.keystoneLevel or 0
@@ -260,6 +265,7 @@ function Core:GetRosterContext()
 
     return {
         members = members,
+        pending = pendingList,
         roles = roles,
         classes = classes,
         specs = specs,

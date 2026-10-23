@@ -72,7 +72,7 @@ end
 ---  * Before +10 (Keys <= 10): No prior completed run required (open queue).
 ---  * Keys 11 to 15: Requires [Key - 2] completed timed for this specific dungeon.
 ---  * Keys 16+: Requires [Key - 1] completed timed for this specific dungeon.
----  * Applicants with equal or higher keys (bestRun >= targetKey) always qualify.
+---  * Optional (disabled by default): Applicants with equal or higher keys (bestRun >= targetKey) qualify even if untimed.
 ---@param candidate table
 ---@param rosterContext table
 ---@return boolean passed, string? reason
@@ -86,8 +86,9 @@ function ns.CheckExperience(candidate, rosterContext)
         return true, nil
     end
 
-    -- Applicants with equal or higher keys for this dungeon are strictly valid
-    if bestRun >= targetKey then
+    -- Option: Auto-qualify equal and higher key applicants (disabled by default)
+    local qualifyEqualOrHigher = (MPlusAutoLFGDB and MPlusAutoLFGDB.qualifyEqualOrHigher) == true
+    if qualifyEqualOrHigher and bestRun >= targetKey then
         return true, nil
     end
 

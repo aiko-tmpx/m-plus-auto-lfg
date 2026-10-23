@@ -134,9 +134,35 @@ function ns.InitializeSettings()
         "• |cffffd100Keys up to +10:|r Open queue. No prior completed run of the dungeon is required.\n\n" ..
         "• |cffffd100Keys +11 to +15:|r Requires a completed timed run of at least [Key - 2] specifically for this dungeon (e.g. +9 for an 11, +13 for a 15).\n\n" ..
         "• |cffffd100Keys +16+:|r Requires a completed timed run of at least [Key - 1] specifically for this dungeon (e.g. +15 for a 16).\n\n" ..
-        "• |cffffd100Higher Keys:|r Candidates with an equal or higher completed key for this dungeon always qualify.\n\n" ..
         "• |cffffd100Item Level:|r Must meet the item level requirement set in the Premade Groups listing.\n\n" ..
         "• |cffffd100Group Roles & Utility:|r Automatically guarantees 1 Tank, 1 Healer, 3 DPS, Bloodlust/Heroism, and Combat Resurrection before the group fills.")
+
+    local div2 = panel:CreateTexture(nil, "ARTWORK")
+    div2:SetPoint("TOPLEFT", rulesDesc, "BOTTOMLEFT", 0, -14)
+    div2:SetSize(580, 1)
+    div2:SetColorTexture(0.25, 0.25, 0.28, 0.8)
+
+    -- Section: Options
+    local optHeader = panel:CreateFontString(nil, "OVERLAY", "GameFontNormal")
+    optHeader:SetPoint("TOPLEFT", div2, "BOTTOMLEFT", 0, -14)
+    optHeader:SetText("Qualification Options")
+
+    local equalHigherCb = CreateCheckbox(
+        panel,
+        "Qualify equal and higher key players (even if untimed)",
+        "When enabled, applicants who have completed a run of equal or higher key level for this dungeon qualify automatically, even if the run was overtime / depleted. When disabled (default), applicants must meet the tier requirements and have a timed run.",
+        function() return (MPlusAutoLFGDB and MPlusAutoLFGDB.qualifyEqualOrHigher) == true end,
+        function(val)
+            if MPlusAutoLFGDB then
+                MPlusAutoLFGDB.qualifyEqualOrHigher = val
+            end
+            if ns.Core and ns.Core.EvaluateQueue then
+                ns.Core:EvaluateQueue()
+            end
+        end
+    )
+    equalHigherCb:SetPoint("TOPLEFT", optHeader, "BOTTOMLEFT", 0, -10)
+    table.insert(widgets, equalHigherCb)
 
     panel.Refresh = function()
         for _, w in ipairs(widgets) do

@@ -168,6 +168,7 @@ ns.IlvlThresholdOffsets = {
 ns.DefaultConfig = {
     debug = false,
     autoDelistOnFull = true,
+    qualifyEqualOrHigher = false, -- Disabled by default: allow candidates with equal or higher runs to qualify even if untimed
     rulesMode = "DEFAULT", -- "DEFAULT" (auto-tiered) or "CUSTOM" (user rules)
     customRules = {
         keyDropTolerance = 2,           -- Allowed key difference [TargetKey - X] (clamped to +2)

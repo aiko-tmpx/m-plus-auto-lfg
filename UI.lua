@@ -63,6 +63,52 @@ local function CreateBorder(frame, r, g, b, a)
 end
 
 -------------------------------------------------------------------------------
+-- Micro Role Atlases & Class Color Helpers (Matches Blizzard LFG Design)
+-------------------------------------------------------------------------------
+local ROLE_MICRO_ATLAS = {
+    TANK = "groupfinder-icon-role-micro-tank",
+    HEALER = "groupfinder-icon-role-micro-heal",
+    DAMAGER = "groupfinder-icon-role-micro-dps"
+}
+
+local ROLE_FALLBACK_COORDS = {
+    TANK = { 0, 0.28125, 0.328125, 0.625 },
+    HEALER = { 0.296875, 0.578125, 0, 0.296875 },
+    DAMAGER = { 0.265625, 0.546875, 0.328125, 0.625 }
+}
+
+local function GetClassColorRGB(classFilename)
+    if not classFilename then return 0.5, 0.5, 0.5 end
+    if C_ClassColor and C_ClassColor.GetClassColor then
+        local colorObj = C_ClassColor.GetClassColor(classFilename)
+        if colorObj then
+            return colorObj.r, colorObj.g, colorObj.b
+        end
+    end
+    if RAID_CLASS_COLORS and RAID_CLASS_COLORS[classFilename] then
+        local c = RAID_CLASS_COLORS[classFilename]
+        return c.r, c.g, c.b
+    end
+    return 0.5, 0.5, 0.5
+end
+
+local function ApplyRoleIcon(texture, role, isDesaturated, alpha)
+    local atlas = ROLE_MICRO_ATLAS[role]
+    local success = false
+    if atlas and C_Texture and C_Texture.GetAtlasInfo and C_Texture.GetAtlasInfo(atlas) then
+        texture:SetAtlas(atlas)
+        success = true
+    end
+    if not success then
+        texture:SetTexture("Interface\\LFGFrame\\UI-LFG-ICON-PORTRAITROLES")
+        local c = ROLE_FALLBACK_COORDS[role] or ROLE_FALLBACK_COORDS.DAMAGER
+        texture:SetTexCoord(c[1], c[2], c[3], c[4])
+    end
+    texture:SetDesaturated(isDesaturated == true)
+    texture:SetAlpha(alpha or 1.0)
+end
+
+-------------------------------------------------------------------------------
 -- Main Modern Dragonflight / The War Within (TWW) HUD Creation
 -------------------------------------------------------------------------------
 function UI:CreateMainHUD()
@@ -74,7 +120,7 @@ function UI:CreateMainHUD()
     -- Modern Dragonflight / The War Within (TWW) dark slate canvas
     local f = CreateFrame("Frame", "MPlusAutoLFGMainFrame", UIParent)
     mainFrame = f
-    f:SetSize(350, 276)
+    f:SetSize(350, 256)
     f:SetFrameStrata("DIALOG")
     f:SetToplevel(true)
     f:SetClampedToScreen(true)
@@ -170,31 +216,33 @@ function UI:CreateMainHUD()
     div1:SetColorTexture(0.18, 0.18, 0.22, 0.6)
 
     ---------------------------------------------------------------------------
-    -- Middle Section A: Unboxed 5-Role Party Roster & Clean Utilities (BL / CR)
+    -- Middle Section A: Blizzard-Style 5 Member Circular Slots & Utilities
     ---------------------------------------------------------------------------
-    -- 5 Unboxed Role Icons: [Tank] [Healer] [DPS 1] [DPS 2] [DPS 3]
     f.roleSlots = {}
-    local roleCoords = {
-        TANK = { 0, 0.28125, 0.328125, 0.625 },
-        HEALER = { 0.296875, 0.578125, 0, 0.296875 },
-        DAMAGER = { 0.265625, 0.546875, 0.328125, 0.625 }
-    }
-    local defaultRoles = { "TANK", "HEALER", "DAMAGER", "DAMAGER", "DAMAGER" }
-
     for i = 1, 5 do
         local slot = CreateFrame("Frame", nil, f)
         slot:SetSize(22, 22)
         slot:SetPoint("TOPLEFT", f, "TOPLEFT", 14 + (i - 1) * 25, -82)
 
-        local slotIcon = slot:CreateTexture(nil, "ARTWORK")
-        slotIcon:SetAllPoints(slot)
-        slotIcon:SetTexture("Interface\\LFGFrame\\UI-LFG-ICON-PORTRAITROLES")
-        local rName = defaultRoles[i]
-        local c = roleCoords[rName]
-        slotIcon:SetTexCoord(c[1], c[2], c[3], c[4])
-        slotIcon:SetDesaturated(true)
-        slotIcon:SetAlpha(0.35)
-        slot.icon = slotIcon
+        -- Circular background disc
+        local circle = slot:CreateTexture(nil, "BACKGROUND")
+        circle:SetAllPoints(slot)
+        circle:SetColorTexture(0.12, 0.12, 0.15, 0.65)
+
+        -- Mask texture for circular cutout
+        local mask = slot:CreateMaskTexture()
+        mask:SetAllPoints(circle)
+        mask:SetTexture("Interface\\CharacterFrame\\TempPortraitAlphaMask", "CLAMPTOBLACKADDITIVE", "CLAMPTOBLACKADDITIVE")
+        circle:AddMaskTexture(mask)
+        slot.circle = circle
+        slot.mask = mask
+
+        -- Centered micro role icon
+        local roleIcon = slot:CreateTexture(nil, "ARTWORK")
+        roleIcon:SetSize(14, 14)
+        roleIcon:SetPoint("CENTER", slot, "CENTER", 0, 0)
+        ApplyRoleIcon(roleIcon, "DAMAGER", true, 0.25)
+        slot.roleIcon = roleIcon
 
         slot:EnableMouse(true)
         slot:SetScript("OnEnter", function(self)
@@ -214,7 +262,7 @@ function UI:CreateMainHUD()
     -- Clean Text Utilities: Bloodlust (BL) and Combat Res (CR)
     local blFrame = CreateFrame("Frame", nil, f)
     blFrame:SetSize(28, 20)
-    blFrame:SetPoint("LEFT", f, "TOPLEFT", 148, -93)
+    blFrame:SetPoint("LEFT", f, "TOPLEFT", 144, -92)
 
     local blText = blFrame:CreateFontString(nil, "OVERLAY", "GameFontHighlight")
     blText:SetAllPoints(blFrame)
@@ -237,7 +285,7 @@ function UI:CreateMainHUD()
 
     local crFrame = CreateFrame("Frame", nil, f)
     crFrame:SetSize(28, 20)
-    crFrame:SetPoint("LEFT", blFrame, "RIGHT", 10, 0)
+    crFrame:SetPoint("LEFT", blFrame, "RIGHT", 8, 0)
 
     local crText = crFrame:CreateFontString(nil, "OVERLAY", "GameFontHighlight")
     crText:SetAllPoints(crFrame)
@@ -258,32 +306,10 @@ function UI:CreateMainHUD()
     end)
     f.crFrame = crFrame
 
-    ---------------------------------------------------------------------------
-    -- Middle Section B: Rules Information & Settings Shortcut
-    ---------------------------------------------------------------------------
-    local rulesBtn = CreateFrame("Button", nil, f, "UIPanelButtonTemplate")
-    rulesBtn:SetSize(68, 20)
-    rulesBtn:SetPoint("LEFT", f, "TOPLEFT", 14, -108)
-    rulesBtn:SetText("Rules")
-    f.rulesBtn = rulesBtn
-
-    rulesBtn:SetScript("OnEnter", function(self)
-        GameTooltip:SetOwner(self, "ANCHOR_TOP")
-        GameTooltip:SetText("Matchmaking Rules", 1, 0.82, 0)
-        GameTooltip:AddLine("Automated fair qualification tiers:", 1, 1, 1, true)
-        GameTooltip:AddLine("• Keys up to +10: |cff00ff00Open queue|r (no prior completed run required)", 0.8, 0.8, 0.8, true)
-        GameTooltip:AddLine("• Keys +11 to +15: Requires |cffffd100[Key - 2]|r timed in this dungeon", 0.8, 0.8, 0.8, true)
-        GameTooltip:AddLine("• Keys +16+: Requires |cffff8000[Key - 1]|r timed in this dungeon", 0.8, 0.8, 0.8, true)
-        GameTooltip:AddLine("• Higher Keys: Candidates with equal or higher keys always qualify", 0.8, 0.8, 0.8, true)
-        GameTooltip:AddLine("• Composition: 1 Tank, 1 Healer, 3 DPS", 0.8, 0.8, 0.8, true)
-        GameTooltip:AddLine("• Utilities: Guarantees Bloodlust & Combat Res", 0.8, 0.8, 0.8, true)
-        GameTooltip:Show()
-    end)
-    rulesBtn:SetScript("OnLeave", function() GameTooltip:Hide() end)
-
+    -- Options Shortcut Button (Right side of the utilities row)
     local configBtn = CreateFrame("Button", nil, f, "UIPanelButtonTemplate")
     configBtn:SetSize(68, 20)
-    configBtn:SetPoint("TOPRIGHT", f, "TOPRIGHT", -14, -108)
+    configBtn:SetPoint("TOPRIGHT", f, "TOPRIGHT", -14, -83)
     configBtn:SetText("Options")
     f.configBtn = configBtn
 
@@ -300,23 +326,10 @@ function UI:CreateMainHUD()
     end)
     configBtn:SetScript("OnLeave", function() GameTooltip:Hide() end)
 
-    configBtn:SetScript("OnClick", function()
-        if ns.OpenOptions then
-            ns.OpenOptions()
-        end
-    end)
-    configBtn:SetScript("OnEnter", function(self)
-        GameTooltip:SetOwner(self, "ANCHOR_TOP")
-        GameTooltip:SetText("MPlusAutoLFG Settings", 1, 0.82, 0)
-        GameTooltip:AddLine("Click to open configuration panel in Game Menu -> Options.", 1, 1, 1, true)
-        GameTooltip:Show()
-    end)
-    configBtn:SetScript("OnLeave", function() GameTooltip:Hide() end)
-
     -- Section divider 2
     local div2 = f:CreateTexture(nil, "ARTWORK")
-    div2:SetPoint("TOPLEFT", f, "TOPLEFT", 14, -128)
-    div2:SetPoint("TOPRIGHT", f, "TOPRIGHT", -14, -128)
+    div2:SetPoint("TOPLEFT", f, "TOPLEFT", 14, -110)
+    div2:SetPoint("TOPRIGHT", f, "TOPRIGHT", -14, -110)
     div2:SetHeight(1)
     div2:SetColorTexture(0.18, 0.18, 0.22, 0.6)
 
@@ -324,8 +337,8 @@ function UI:CreateMainHUD()
     -- Middle Section C: Next Qualified Applicant Showcase Card
     ---------------------------------------------------------------------------
     local candBox = CreateFrame("Frame", nil, f)
-    candBox:SetPoint("TOPLEFT", f, "TOPLEFT", 14, -134)
-    candBox:SetPoint("TOPRIGHT", f, "TOPRIGHT", -14, -134)
+    candBox:SetPoint("TOPLEFT", f, "TOPLEFT", 14, -116)
+    candBox:SetPoint("TOPRIGHT", f, "TOPRIGHT", -14, -116)
     candBox:SetHeight(94)
     f.candBox = candBox
 
@@ -442,17 +455,6 @@ function UI:OnInviteClicked(candidate)
 end
 
 -------------------------------------------------------------------------------
--- Rules Mode Button Updater (Stub for compatibility)
--------------------------------------------------------------------------------
-function UI:UpdateModeButtons()
-    -- Retired: Single unified qualification tier system
-end
-
-function UI:UpdateModeButton()
-    -- Retired: Single unified qualification tier system
-end
-
--------------------------------------------------------------------------------
 -- Header & Status Updater
 -------------------------------------------------------------------------------
 function UI:UpdateHeader(challengeMapID, keystoneLevel, dungeonName, iconTexture, currentState, elapsed, displayTitle, isMPlusQueue, isValidKey)
@@ -494,7 +496,6 @@ function UI:UpdateHeader(challengeMapID, keystoneLevel, dungeonName, iconTexture
         f.statusIcon:SetTexture("Interface\\Common\\Indicator-Gray")
         f.statusText:SetText("|cffff4444Invalid Key|r")
 
-        if f.rulesBtn then f.rulesBtn:Disable(); f.rulesBtn:SetAlpha(0.30) end
         if f.candBox then f.candBox:SetAlpha(0.40) end
 
         f.inviteBtn:Disable()
@@ -506,7 +507,6 @@ function UI:UpdateHeader(challengeMapID, keystoneLevel, dungeonName, iconTexture
         f.statusIcon:SetTexture("Interface\\Common\\Indicator-Gray")
         f.statusText:SetText("|cffff8800Not M+|r")
 
-        if f.rulesBtn then f.rulesBtn:Disable(); f.rulesBtn:SetAlpha(0.30) end
         if f.candBox then f.candBox:SetAlpha(0.40) end
 
         f.inviteBtn:Disable()
@@ -516,7 +516,6 @@ function UI:UpdateHeader(challengeMapID, keystoneLevel, dungeonName, iconTexture
         f.keyIcon:SetDesaturated(false)
         f.keyIcon:SetAlpha(1.0)
         if f.candBox then f.candBox:SetAlpha(1.0) end
-        if f.rulesBtn then f.rulesBtn:Enable(); f.rulesBtn:SetAlpha(1.0) end
 
         if ns.States and state == ns.States.LISTED then
             f.statusIcon:SetTexture("Interface\\Common\\Indicator-Green")
@@ -587,9 +586,10 @@ function UI:UpdateUtilityStatus(rosterContext)
     if hasListing and isMPlus and not isValidKey then
         for i = 1, 5 do
             local slot = f.roleSlots[i]
-            if slot and slot.icon then
-                slot.icon:SetDesaturated(true)
-                slot.icon:SetAlpha(0.25)
+            if slot then
+                slot.circle:SetColorTexture(0.08, 0.08, 0.10, 0.5)
+                local defaultRole = (i == 1 and "TANK") or (i == 2 and "HEALER") or "DAMAGER"
+                ApplyRoleIcon(slot.roleIcon, defaultRole, true, 0.15)
                 slot.tooltipText = "Matchmaking Disabled (Invalid Key Level)"
             end
         end
@@ -600,58 +600,96 @@ function UI:UpdateUtilityStatus(rosterContext)
         return
     end
 
-    -- Slot 1: Tank
-    local tankSlot = f.roleSlots[1]
-    if tankSlot then
-        if tanks[1] then
-            tankSlot.icon:SetDesaturated(false)
-            tankSlot.icon:SetAlpha(1.0)
-            tankSlot.tooltipText = format("Tank: %s (%s)", tanks[1].name, tanks[1].class or "")
-        elseif totalTanks > 0 then
-            tankSlot.icon:SetDesaturated(false)
-            tankSlot.icon:SetAlpha(0.7)
-            tankSlot.tooltipText = "Tank: Reserved (Invited)"
-        else
-            tankSlot.icon:SetDesaturated(true)
-            tankSlot.icon:SetAlpha(0.35)
-            tankSlot.tooltipText = "Tank: Needed"
+    -- Dynamically assemble 5 slots matching Blizzard Group Finder:
+    -- 1. Existing members (Tanks -> Healers -> DPS)
+    -- 2. Pending invited candidates
+    -- 3. Needed missing roles (Tanks -> Healers -> DPS)
+    local slotEntries = {}
+
+    for _, m in ipairs(tanks) do
+        table.insert(slotEntries, {
+            type = "MEMBER",
+            role = "TANK",
+            name = m.name,
+            class = m.class,
+            tooltip = format("Tank: %s (%s)", m.name, m.class or "Tank")
+        })
+    end
+    for _, m in ipairs(healers) do
+        table.insert(slotEntries, {
+            type = "MEMBER",
+            role = "HEALER",
+            name = m.name,
+            class = m.class,
+            tooltip = format("Healer: %s (%s)", m.name, m.class or "Healer")
+        })
+    end
+    for _, m in ipairs(dps) do
+        table.insert(slotEntries, {
+            type = "MEMBER",
+            role = "DAMAGER",
+            name = m.name,
+            class = m.class,
+            tooltip = format("DPS: %s (%s)", m.name, m.class or "DPS")
+        })
+    end
+
+    if rosterContext.pending then
+        for _, p in ipairs(rosterContext.pending) do
+            if #slotEntries < 5 then
+                local roleStr = (p.role == "TANK" and "Tank") or (p.role == "HEALER" and "Healer") or "DPS"
+                table.insert(slotEntries, {
+                    type = "PENDING",
+                    role = p.role or "DAMAGER",
+                    name = p.name,
+                    class = p.class,
+                    tooltip = format("%s: %s (Reserved - Invited)", roleStr, p.name or "Applicant")
+                })
+            end
         end
     end
 
-    -- Slot 2: Healer
-    local healerSlot = f.roleSlots[2]
-    if healerSlot then
-        if healers[1] then
-            healerSlot.icon:SetDesaturated(false)
-            healerSlot.icon:SetAlpha(1.0)
-            healerSlot.tooltipText = format("Healer: %s (%s)", healers[1].name, healers[1].class or "")
-        elseif totalHealers > 0 then
-            healerSlot.icon:SetDesaturated(false)
-            healerSlot.icon:SetAlpha(0.7)
-            healerSlot.tooltipText = "Healer: Reserved (Invited)"
-        else
-            healerSlot.icon:SetDesaturated(true)
-            healerSlot.icon:SetAlpha(0.35)
-            healerSlot.tooltipText = "Healer: Needed"
+    local neededTanks = max(0, 1 - totalTanks)
+    local neededHealers = max(0, 1 - totalHealers)
+    local neededDPS = max(0, 3 - totalDPS)
+
+    for i = 1, neededTanks do
+        if #slotEntries < 5 then
+            table.insert(slotEntries, { type = "NEEDED", role = "TANK", tooltip = "Tank: Needed" })
+        end
+    end
+    for i = 1, neededHealers do
+        if #slotEntries < 5 then
+            table.insert(slotEntries, { type = "NEEDED", role = "HEALER", tooltip = "Healer: Needed" })
+        end
+    end
+    for i = 1, neededDPS do
+        if #slotEntries < 5 then
+            table.insert(slotEntries, { type = "NEEDED", role = "DAMAGER", tooltip = "DPS: Needed" })
         end
     end
 
-    -- Slots 3, 4, 5: DPS 1, 2, 3
-    for idx = 1, 3 do
-        local dpsSlot = f.roleSlots[2 + idx]
-        if dpsSlot then
-            if dps[idx] then
-                dpsSlot.icon:SetDesaturated(false)
-                dpsSlot.icon:SetAlpha(1.0)
-                dpsSlot.tooltipText = format("DPS: %s (%s)", dps[idx].name, dps[idx].class or "")
-            elseif idx <= totalDPS then
-                dpsSlot.icon:SetDesaturated(false)
-                dpsSlot.icon:SetAlpha(0.7)
-                dpsSlot.tooltipText = "DPS: Reserved (Invited)"
+    while #slotEntries < 5 do
+        table.insert(slotEntries, { type = "NEEDED", role = "DAMAGER", tooltip = "DPS: Needed" })
+    end
+
+    for i = 1, 5 do
+        local slot = f.roleSlots[i]
+        local entry = slotEntries[i]
+        if slot and entry then
+            slot.tooltipText = entry.tooltip
+
+            if entry.type == "MEMBER" then
+                local cr, cg, cb = GetClassColorRGB(entry.class)
+                slot.circle:SetColorTexture(cr, cg, cb, 1.0)
+                ApplyRoleIcon(slot.roleIcon, entry.role, false, 1.0)
+            elseif entry.type == "PENDING" then
+                local cr, cg, cb = GetClassColorRGB(entry.class)
+                slot.circle:SetColorTexture(cr * 0.7, cg * 0.7, cb * 0.7, 0.75)
+                ApplyRoleIcon(slot.roleIcon, entry.role, false, 0.75)
             else
-                dpsSlot.icon:SetDesaturated(true)
-                dpsSlot.icon:SetAlpha(0.35)
-                dpsSlot.tooltipText = "DPS: Needed"
+                slot.circle:SetColorTexture(0.12, 0.12, 0.15, 0.65)
+                ApplyRoleIcon(slot.roleIcon, entry.role, true, 0.25)
             end
         end
     end
@@ -972,7 +1010,6 @@ function UI:Show()
     if ns.Core and ns.Core.UpdateUI then
         ns.Core:UpdateUI()
     end
-    self:UpdateModeButton()
     mainFrame:Show()
 end
 
@@ -993,5 +1030,4 @@ function UI:Initialize()
     self:CreateMainHUD()
     self:CreateMinimapButton()
     self:CreateLFGTopButton()
-    self:UpdateModeButton()
 end
