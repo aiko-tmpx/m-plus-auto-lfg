@@ -15,4 +15,3 @@ Validation.lua
 Settings.lua
 UI.lua
 Core.lua
-DebugWatcher.lua

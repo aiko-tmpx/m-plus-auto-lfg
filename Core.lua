@@ -530,13 +530,13 @@ function Core:RefreshKeystoneInfo()
             activeKeystone.isValidKey = (parsedLevel >= 2 and parsedLevel <= 50)
             activeKeystone.requiredItemLevel = listReqIlvl or 0
 
-            -- Draw only title: use the listing title string directly
-            if listTitle and listTitle ~= "" then
-                activeKeystone.displayTitle = listTitle
-            elseif parsedLevel > 0 then
+            -- Draw strictly parsed key number when valid (e.g. "+2", "+23")
+            if activeKeystone.isValidKey then
                 activeKeystone.displayTitle = format("+%d", parsedLevel)
+            elseif listTitle and listTitle ~= "" then
+                activeKeystone.displayTitle = listTitle
             else
-                activeKeystone.displayTitle = "M+ Listing"
+                activeKeystone.displayTitle = "Invalid Key"
             end
 
             -- If key level could not be parsed or is invalid (e.g. "+1 wer 3"), disable matchmaking
@@ -580,8 +580,10 @@ function Core:RefreshKeystoneInfo()
         activeKeystone.isMPlusQueue = false
         activeKeystone.isValidKey = (bagKeyLevel and bagKeyLevel >= 2)
         activeKeystone.requiredItemLevel = 0
-        if bagDungeonName and bagDungeonName ~= "" and bagDungeonName ~= "Unknown Dungeon" then
-            activeKeystone.displayTitle = format("%s +%d", bagDungeonName, bagKeyLevel or 2)
+        if bagKeyLevel and bagKeyLevel >= 2 then
+            activeKeystone.displayTitle = format("+%d", bagKeyLevel)
+        elseif bagDungeonName and bagDungeonName ~= "" and bagDungeonName ~= "Unknown Dungeon" then
+            activeKeystone.displayTitle = bagDungeonName
         else
             activeKeystone.displayTitle = "No Keystone Found"
         end
